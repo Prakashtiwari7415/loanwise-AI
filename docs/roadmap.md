@@ -6,19 +6,19 @@
 - [x] Health endpoint
 
 ## Phase 2 — Financial Engine
-- [ ] EMI calculator
-- [ ] Amortization schedule
-- [ ] Total borrowing cost
-- [ ] Affordability analysis
-- [ ] Prepayment simulation
-- [ ] Interest-rate scenarios
-- [ ] Unit tests
+- [x] EMI calculator
+- [x] Amortization schedule
+- [x] Total borrowing cost
+- [x] Affordability analysis
+- [x] Prepayment simulation
+- [x] Interest-rate scenarios
+- [x] Unit and API tests
 
 ## Phase 3 — Backend
-- [ ] API architecture
-- [ ] Pydantic schemas
-- [ ] Service layer
-- [ ] Error handling
+- [x] Versioned API architecture
+- [x] Pydantic schemas
+- [x] Domain/service boundary
+- [x] Validated error handling
 
 ## Phase 4 — Database
 - [ ] PostgreSQL
@@ -28,13 +28,11 @@
 - [ ] User profile model
 
 ## Phase 5 — Frontend
-- [ ] React
-- [ ] TypeScript
-- [ ] Tailwind
-- [ ] Onboarding
-- [ ] Loan dashboard
+- [x] React + TypeScript
+- [x] Responsive car-loan onboarding/dashboard
+- [x] Visual affordability result
+- [x] Rate scenario simulator
 - [ ] Comparison UI
-- [ ] Scenario simulator
 
 ## Phase 6 — AI
 - [ ] Tool calling
