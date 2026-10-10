@@ -19,10 +19,16 @@ STOP_WORDS = {
     "my", "no", "not", "of", "on", "or", "so", "tell", "the", "their",
     "this", "to", "was", "what", "when", "where", "which", "who", "why",
     "will", "with", "you", "your",
+    # Common conversational verbs and non-financial words
+    "make", "makes", "made", "get", "gets", "got", "take", "takes", "took",
+    "give", "gives", "gave", "go", "goes", "went", "come", "comes", "came",
+    "know", "knows", "want", "wants", "need", "needs", "use", "uses", "used",
+    "say", "says", "said", "ask", "asks", "asked", "show", "shows", "showed",
+    "scratch", "recipe", "cook", "bake", "food", "bread", "pizza",
 }
 
 # Minimum BM25 score to consider a result relevant (SQLite FTS5 bm25 is negative; positive score = -bm25)
-MIN_RELEVANCE_SCORE = 1.0
+MIN_RELEVANCE_SCORE = 2.0
 
 
 class KnowledgeRetriever:

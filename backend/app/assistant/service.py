@@ -69,11 +69,37 @@ class AssistantService:
         total_tool_calls = 0
 
         # 3. Agent orchestration loop
-        for _ in range(self.max_turns):
+        for turn_idx in range(self.max_turns):
             response = await self.provider.generate_response(messages, tools=tool_defs)
 
             # If no tool calls were requested, parse final structured output
             if not response.tool_calls:
+                # If content already has a JSON structure, parse directly
+                if response.content and "{" in response.content:
+                    return self._parse_structured_response(response.content, executed_tools, retrieval_results)
+
+                # If tools were active, model replied in prose, and turns remain,
+                # do a quick formatting turn without tools to engage response_format=json_object
+                if (
+                    tool_defs is not None
+                    and response.content
+                    and "chatbot" not in response.content.lower()
+                    and turn_idx + 1 < self.max_turns
+                ):
+                    messages.append(ChatMessage(role="assistant", content=response.content))
+                    messages.append(
+                        ChatMessage(
+                            role="user",
+                            content=(
+                                "Format your response strictly as a single JSON object with schema: "
+                                "headline, message, advantages, risks, recommended_action, assumptions, "
+                                "needs_more_information, sources. Do not output text outside the JSON object."
+                            ),
+                        )
+                    )
+                    tool_defs = None
+                    continue
+
                 return self._parse_structured_response(response.content, executed_tools, retrieval_results)
 
             # Record assistant turn with requested tool calls
@@ -113,9 +139,18 @@ class AssistantService:
                     )
                 )
 
-            # When limit is reached, disable tools on subsequent turns to force final output
-            if total_tool_calls >= self.max_tool_calls:
-                tool_defs = None
+            # Prompt model for final structured JSON synthesis after tool results
+            messages.append(
+                ChatMessage(
+                    role="system",
+                    content=(
+                        "Tool execution completed. Output your final answer strictly as a single valid JSON object "
+                        "with fields: headline, message, advantages, risks, recommended_action, assumptions, "
+                        "needs_more_information, sources. Do not output text outside the JSON object."
+                    ),
+                )
+            )
+            tool_defs = None
 
         # If turn limit reached without final text, request one final turn without tools
         final_response = await self.provider.generate_response(messages, tools=None)
@@ -181,7 +216,10 @@ class AssistantService:
                             grounded_sources.append(cit_data)
                         elif not retrieved:
                             logger.warning("Rejected hallucinated citation without evidence: %s", item.get("title"))
-            elif retrieved:
+
+            # If model didn't return matching citation dicts but reliable evidence was retrieved,
+            # attach the unique verified citations from the retrieved evidence
+            if not grounded_sources and retrieved:
                 seen_titles: set[str] = set()
                 for r in retrieved:
                     cit = to_citation(r)
@@ -190,6 +228,22 @@ class AssistantService:
                         grounded_sources.append(cit.model_dump())
 
             parsed["sources"] = grounded_sources
+
+            # Defensive normalization for model schema variations
+            if isinstance(parsed.get("recommended_action"), list):
+                parsed["recommended_action"] = " ".join(str(item) for item in parsed["recommended_action"])
+
+            for list_field in ("advantages", "risks", "assumptions"):
+                if isinstance(parsed.get(list_field), str):
+                    parsed[list_field] = [parsed[list_field]]
+                elif not isinstance(parsed.get(list_field), list):
+                    parsed[list_field] = []
+
+            nmi = parsed.get("needs_more_information")
+            if isinstance(nmi, str):
+                parsed["needs_more_information"] = nmi.strip().lower() in ("true", "yes", "1")
+            elif not isinstance(nmi, bool):
+                parsed["needs_more_information"] = bool(nmi)
 
             return AssistantChatResponse.model_validate(parsed)
         except (json.JSONDecodeError, ValidationError) as exc:

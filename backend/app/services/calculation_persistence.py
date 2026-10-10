@@ -19,16 +19,24 @@ def _json_ready(value: Any) -> Any:
     return value
 
 
+import logging
+
+logger = logging.getLogger(__name__)
+
+
 def persist_calculation_if_configured(
     *, calculation_type: str, inputs: dict[str, Any], outputs: dict[str, Any]
 ) -> None:
     """Persist only when DATABASE_URL is configured; local calculator use remains stateless."""
     if not database_is_configured():
         return
-    with session_scope() as session:
-        create_calculation_result(
-            session,
-            calculation_type=calculation_type,
-            inputs=_json_ready(inputs),
-            outputs=_json_ready(outputs),
-        )
+    try:
+        with session_scope() as session:
+            create_calculation_result(
+                session,
+                calculation_type=calculation_type,
+                inputs=_json_ready(inputs),
+                outputs=_json_ready(outputs),
+            )
+    except Exception as exc:
+        logger.warning("Optional calculation persistence skipped due to database error: %s", exc)

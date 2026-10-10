@@ -125,6 +125,8 @@ class OpenAIAdapter(LLMProvider):
         }
         if formatted_tools:
             params["tools"] = formatted_tools
+        else:
+            params["response_format"] = {"type": "json_object"}
 
         label = self.provider_label
         try:
