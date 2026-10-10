@@ -8,6 +8,7 @@ from sqlalchemy import text
 from fastapi import FastAPI, File, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 
+from .assistant.router import router as assistant_router
 from .document_extraction import extract_pdf_fields
 from .core.config import get_settings
 from .db.session import get_engine
@@ -201,3 +202,6 @@ async def analyse_document(file: UploadFile = File(...)) -> object:
         "warnings": ["Missing fields are shown as not found and are never inferred."],
         "disclaimer": "Extracted values should be checked against the original lender document.",
     }
+
+
+app.include_router(assistant_router)

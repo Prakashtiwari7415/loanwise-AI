@@ -1,0 +1,1 @@
+"""Assistant adapters package initialization."""
