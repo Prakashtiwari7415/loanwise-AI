@@ -6,6 +6,9 @@ from decimal import Decimal
 from pydantic import BaseModel, ConfigDict, Field
 
 
+from app.rag.models import SourceCitation
+
+
 class APIModel(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -38,3 +41,4 @@ class AssistantChatResponse(APIModel):
     assumptions: list[str] = Field(default_factory=list, description="Underlying assumptions, caveats, and disclaimers")
     tool_calls_used: list[str] = Field(default_factory=list, description="Allowlisted financial tools executed for this response")
     needs_more_information: bool = Field(default=False, description="True if required loan parameters are missing")
+    sources: list[SourceCitation] = Field(default_factory=list, description="Curated source citations grounding the answer")

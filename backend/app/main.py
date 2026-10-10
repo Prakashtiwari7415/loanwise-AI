@@ -194,8 +194,11 @@ async def analyse_document(file: UploadFile = File(...)) -> object:
         fields = extract_pdf_fields(content)
     except RuntimeError as exc:
         raise HTTPException(status_code=503, detail="Document analysis is temporarily unavailable.") from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
     except Exception as exc:
         raise HTTPException(status_code=422, detail="Document could not be parsed.") from exc
+
     return {
         "filename": file.filename or "document.pdf",
         "extracted_fields": {name: DocumentFieldResponse(**value.__dict__) for name, value in fields.items()},

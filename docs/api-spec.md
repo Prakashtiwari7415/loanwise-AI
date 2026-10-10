@@ -85,7 +85,19 @@ Chat with the AI decision-support assistant using allowlisted deterministic fina
   "tool_calls_used": [
     "calculate_emi"
   ],
-  "needs_more_information": false
+  "needs_more_information": false,
+  "sources": [
+    {
+      "title": "RBI Directions on Key Fact Statement (KFS) for Retail and MSME Term Loans",
+      "url": "https://www.rbi.org.in/Scripts/NotificationUser.aspx?Id=12658&Mode=0",
+      "publisher": "Reserve Bank of India",
+      "source_type": "regulatory",
+      "excerpt": "All Regulated Entities must provide a standardized Key Fact Statement (KFS) to retail borrowers before loan agreement execution.",
+      "published_date": "2024-04-15",
+      "verified_date": "2024-10-01",
+      "is_potentially_stale": false
+    }
+  ]
 }
 ```
 
@@ -96,3 +108,58 @@ Chat with the AI decision-support assistant using allowlisted deterministic fina
 - `502 Bad Gateway`: Upstream LLM provider failure or invalid/unparseable structured response from model.
 - `503 Service Unavailable`: LLM provider is not configured (missing `OPENAI_API_KEY` / `LLM_API_KEY`).
 - `504 Gateway Timeout`: LLM provider request timed out.
+
+---
+
+### POST `/api/v1/documents/analyze`
+
+Accepts a multipart PDF upload representing a Key Fact Statement (KFS) or loan sanction letter, performs conservative text extraction using PyMuPDF, and returns extracted terms with confidence ratings.
+
+#### Request Format
+
+- **Content-Type**: `multipart/form-data`
+- **Body**:
+  - `file`: PDF document bytes (max 8 MB / `MAX_DOCUMENT_BYTES = 8 * 1024 * 1024`).
+
+#### Constraints & Security Guardrails
+
+- Client and server validate that content begins with `%PDF-` signature.
+- Rejects non-PDF MIME types with HTTP 415.
+- Rejects forged headers or non-PDF bytes with HTTP 415.
+- Rejects uploads exceeding 8 MB with HTTP 413.
+- Rejects malformed or corrupted PDF streams with HTTP 422.
+- Rejects encrypted or password-protected PDFs with HTTP 422 (`Document is encrypted or password-protected.`).
+- PyMuPDF operates strictly in memory; uploaded files are never persisted to disk or logged.
+
+#### Response Format (`DocumentAnalysisResponse`)
+
+```json
+{
+  "filename": "sbi_kfs.pdf",
+  "extracted_fields": {
+    "lender": { "value": "State Bank of India", "confidence": "high" },
+    "loan_amount": { "value": "Rs. 10,00,000", "confidence": "high" },
+    "interest_rate": { "value": "8.50%", "confidence": "high" },
+    "tenure": { "value": "60 months", "confidence": "high" },
+    "emi": { "value": "Rs. 20,517", "confidence": "high" },
+    "processing_fee": { "value": "Rs. 2,500", "confidence": "high" },
+    "other_charges": { "value": "Rs. 1,000", "confidence": "high" },
+    "apr": { "value": "8.85%", "confidence": "high" },
+    "rate_type": { "value": "floating", "confidence": "medium" },
+    "prepayment_terms": { "value": "Needs review", "confidence": "needs_review" },
+    "foreclosure_terms": { "value": "Needs review", "confidence": "needs_review" }
+  },
+  "warnings": [
+    "Missing fields are shown as not found and are never inferred."
+  ],
+  "disclaimer": "Extracted values should be checked against the original lender document."
+}
+```
+
+#### HTTP Status Codes
+
+- `200 OK`: Successful extraction response adhering to `DocumentAnalysisResponse`.
+- `413 Payload Too Large`: Upload exceeds the 8 MB limit.
+- `415 Unsupported Media Type`: Non-PDF content-type or forged header.
+- `422 Unprocessable Entity`: Malformed PDF, password-protected PDF, or unparseable document stream.
+- `503 Service Unavailable`: PDF parsing library unavailable.

@@ -117,16 +117,16 @@ Located in `frontend/src/AssistantPanel.tsx` and integrated directly into the lo
 
 ### Automated Tests (No API Key Required)
 
-Automated tests use `MockLLMProvider` and require no real API calls or keys:
+Automated tests use `MockLLMProvider` and mock PDF byte generators, requiring no real API calls or keys:
 
 ```bash
-# Backend test suite (53 tests)
+# Backend test suite (71 passing tests)
 cd backend
 .venv/bin/python -m pytest -v
 
-# Frontend test suite & production build
+# Frontend test suite (13 passing tests) & production build
 cd ../frontend
-npm test
+npm test -- --run
 npm run build
 ```
 
@@ -150,7 +150,63 @@ npm run build
    ```
 4. Open `http://localhost:5173`.
 5. Enter your car loan details in the calculator.
-6. In the **LoanWise AI Assistant** panel, click **"Explain my current EMI."** or type:
-   `"What would my EMI be if interest rates increase by 1.5%?"`
-7. Verify that the assistant responds with structured advice and displays:
-   `⚙ Used financial tool: Rate Sensitivity Engine` (or `EMI & Borrowing Cost Engine`).
+6. In **Section 02 / Key Fact Statement (KFS) Intelligence**, drag and drop a KFS PDF.
+7. Click **Analyze document →** to extract lender terms and run deterministic financial calculations.
+8. In the **LoanWise AI Assistant**, ask regulatory questions like:
+   `"What does RBI mandate about KFS cooling-off period?"` or
+   `"Are foreclosure charges allowed on floating car loans?"`
+9. Verify that the assistant responds with verified, grounded citations, clickable source URLs, publisher tags, and staleness warnings where applicable.
+
+---
+
+## KFS Document Intelligence Architecture (Phase 4)
+
+### Principles
+
+1. **Conservative Extraction**: Extraction uses targeted regex and PyMuPDF text stream extraction. If a field is not found in the document, it is marked as `not_found` with `value: null` rather than guessed or fabricated.
+2. **Security & Input Isolation**: Uploaded PDFs are parsed strictly in memory (never written to disk or logged) and treated as untrusted borrower input. Malformed streams, non-PDF bytes, password-protected files, and payloads over 8 MB are rejected immediately.
+3. **Deterministic Math Grounding**: Authoritative EMI, total interest, and borrowing cost calculations for the extracted document are executed by `POST /api/v1/loans/calculate`, never computed by the LLM or frontend JavaScript.
+4. **Contextual Action Dispatch**: Extracted parameters (principal, interest rate, tenure, fees) are passed as structured `loan_context` to `POST /api/v1/assistant/chat`, ensuring that assistant answers are grounded in validated financial engine tools.
+5. **Limitations**: Current document intelligence supports text-based PDF documents. Scanned/rasterized PDFs requiring OCR are deferred to future roadmap phases.
+
+---
+
+## Grounded Financial RAG Architecture (Phase 5)
+
+### Core Pipeline
+
+```
+User Query (e.g., "What does RBI mandate about KFS cooling-off period?")
+            ↓
+  KnowledgeRetriever (SQLite FTS5 + BM25)
+            ↓
+  Relevance Threshold Filter (MIN_RELEVANCE_SCORE = 1.0)
+     ├── Below threshold → Empty evidence (Model instructed to report no reliable source)
+     └── Above threshold → Ranked SourceChunks with traceable metadata
+            ↓
+  Untrusted Evidence Packaging (format_rag_evidence_prompt)
+            ↓
+  AssistantService (Orchestrator)
+            ↓
+  LLM Provider Adapter (Gemini / OpenAI)
+     ├── Tool execution if math required (e.g. calculate_emi)
+     └── Evidence grounding for regulatory/lender statements
+            ↓
+  Citation Grounding & Hallucination Filter (_parse_structured_response)
+     ├── Matches model citations against retrieved evidence chunks
+     └── Discards ungrounded or invented citations/URLs
+            ↓
+  AssistantChatResponse (Pydantic schema with validated sources: list[SourceCitation])
+            ↓
+  React AssistantPanel (Clickable links, publisher tags, and staleness banners)
+```
+
+### Key Principles
+
+1. **Traceable Provenance**: Every chunk is linked to a verified `SourceDocument` with documented title, official URL, publisher, publication date, retrieval date, and verification date.
+2. **Lexical & Semantic Match via FTS5 BM25**: Uses SQLite FTS5 for zero-dependency, lightning-fast in-memory retrieval without heavy vector databases.
+3. **Confidence Thresholding**: Irrelevant queries return an empty evidence list. The assistant explicitly informs the user when verified source documents are unavailable, preventing hallucinated advice.
+4. **Staleness Awareness**: Lender fee schedules verified >90 days ago carry `is_potentially_stale = True`, triggering prominent warnings in the UI to confirm terms directly with the lender.
+5. **Prompt Injection Hardening**: Retrieved text is labeled strictly as untrusted reference material; system instructions explicitly forbid treating text inside excerpts as instructions.
+6. **Separation of Concerns**: Mathematical calculations remain exclusively handled by deterministic financial tools; RAG solely provides regulatory evidence and terminology grounding.
+7. **Repeatable Ingestion**: Standalone command `python -m app.rag.ingestion` validates metadata, performs security audits (blocking private borrower data), and chunks documents into the index.

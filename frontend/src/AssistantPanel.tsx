@@ -3,10 +3,11 @@ import { sendAssistantMessage, type AssistantChatResponse, type LoanContext } fr
 
 const SUGGESTED_QUESTIONS = [
   "Explain my current EMI.",
-  "What if I increase my down payment by ₹1 lakh?",
-  "What happens if interest rates rise by 1%?",
+  "What does RBI mandate about KFS cooling-off period?",
+  "Are foreclosure charges allowed on floating car loans?",
+  "What is the difference between flat and reducing rate?",
   "Can I save interest through prepayment?",
-  "Why might this loan be risky?",
+  "What happens if interest rates rise by 1%?",
 ];
 
 const TOOL_NAMES_MAP: Record<string, string> = {
@@ -28,11 +29,19 @@ type ChatMessage = {
   failedPrompt?: string;
 };
 
-type AssistantPanelProps = {
-  loanContext: LoanContext;
+export type ExternalAssistantAction = {
+  prompt: string;
+  context?: LoanContext;
+  timestamp: number;
 };
 
-export function AssistantPanel({ loanContext }: AssistantPanelProps) {
+type AssistantPanelProps = {
+  loanContext: LoanContext;
+  externalAction?: ExternalAssistantAction | null;
+  onClearExternalAction?: () => void;
+};
+
+export function AssistantPanel({ loanContext, externalAction, onClearExternalAction }: AssistantPanelProps) {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
@@ -45,7 +54,18 @@ export function AssistantPanel({ loanContext }: AssistantPanelProps) {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages, loading]);
 
-  async function handleSend(promptText: string) {
+  useEffect(() => {
+    if (externalAction && externalAction.prompt) {
+      handleSend(externalAction.prompt, externalAction.context);
+      onClearExternalAction?.();
+      const el = document.getElementById("assistant-panel-section");
+      if (el) {
+        el.scrollIntoView({ behavior: "smooth" });
+      }
+    }
+  }, [externalAction]);
+
+  async function handleSend(promptText: string, customContext?: LoanContext) {
     const trimmed = promptText.trim();
     if (!trimmed || loading) return;
 
@@ -67,7 +87,7 @@ export function AssistantPanel({ loanContext }: AssistantPanelProps) {
     try {
       const response = await sendAssistantMessage({
         message: trimmed,
-        loan_context: loanContext,
+        loan_context: customContext ?? loanContext,
       });
 
       const assistantMsg: ChatMessage = {
@@ -125,7 +145,7 @@ export function AssistantPanel({ loanContext }: AssistantPanelProps) {
   }
 
   return (
-    <section className="assistant-card" aria-label="LoanWise AI Assistant">
+    <section id="assistant-panel-section" className="assistant-card" aria-label="LoanWise AI Assistant">
       <header className="assistant-header">
         <div className="assistant-title-group">
           <div className="assistant-badge">
@@ -254,6 +274,75 @@ export function AssistantPanel({ loanContext }: AssistantPanelProps) {
                   <div className="recommended-action-box">
                     <span className="action-tag">Recommended Action</span>
                     <p>{msg.response.recommended_action}</p>
+                  </div>
+                )}
+
+                {/* Verified Sources and Citations */}
+                {msg.response.sources && msg.response.sources.length > 0 && (
+                  <div className="citations-box" aria-label="Verified Source References">
+                    <div className="citations-header">
+                      <span className="citations-icon">📚</span>
+                      <h5>Verified Regulatory & Research Sources</h5>
+                    </div>
+                    <div className="citations-list">
+                      {msg.response.sources.map((src, sIdx) => {
+                        const typeBadgeClass =
+                          src.source_type === "regulatory"
+                            ? "source-badge-regulatory"
+                            : src.source_type === "lender_disclosure"
+                            ? "source-badge-lender"
+                            : "source-badge-educational";
+                        const typeLabel =
+                          src.source_type === "regulatory"
+                            ? "Regulatory Mandate"
+                            : src.source_type === "lender_disclosure"
+                            ? "Lender Disclosure"
+                            : "Financial Guide";
+
+                        return (
+                          <article key={sIdx} className="citation-card">
+                            <div className="citation-top">
+                              <div className="citation-title-row">
+                                {src.url ? (
+                                  <a
+                                    href={src.url}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="citation-link"
+                                    title="Open official source (opens in new tab)"
+                                  >
+                                    {src.title} <span className="external-arrow">↗</span>
+                                  </a>
+                                ) : (
+                                  <strong className="citation-title">{src.title}</strong>
+                                )}
+                              </div>
+                              <div className="citation-meta-tags">
+                                <span className={`source-type-pill ${typeBadgeClass}`}>
+                                  {typeLabel}
+                                </span>
+                                <span className="publisher-tag">{src.publisher}</span>
+                                {src.verified_date && (
+                                  <span className="date-tag">Verified: {src.verified_date}</span>
+                                )}
+                              </div>
+                            </div>
+
+                            {src.is_potentially_stale && (
+                              <div className="stale-warning-banner" role="alert">
+                                <span>⚠️ Notice:</span> Lender terms change frequently. Verification date is older than 90 days. Confirm current terms directly with lender.
+                              </div>
+                            )}
+
+                            {src.excerpt && (
+                              <p className="citation-excerpt">
+                                "{src.excerpt}"
+                              </p>
+                            )}
+                          </article>
+                        );
+                      })}
+                    </div>
                   </div>
                 )}
 

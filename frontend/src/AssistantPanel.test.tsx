@@ -147,4 +147,94 @@ describe("AssistantPanel", () => {
       expect(screen.getByText("Rate Sensitivity Result")).toBeDefined();
     });
   });
+
+  it("renders grounded source citations with clickable links, publisher, and type badge", async () => {
+    const mockResponseWithSources: api.AssistantChatResponse = {
+      headline: "RBI KFS Disclosure Mandate",
+      message: "According to RBI guidelines, all retail loan offers must include a Key Fact Statement.",
+      advantages: ["Clear upfront APR disclosure"],
+      risks: ["Verify all fees"],
+      recommended_action: "Examine the KFS before signing the sanction letter.",
+      assumptions: ["Based on RBI directions 2024."],
+      tool_calls_used: [],
+      needs_more_information: false,
+      sources: [
+        {
+          title: "RBI Directions on Key Fact Statement (KFS) for Retail and MSME Term Loans",
+          url: "https://www.rbi.org.in/Scripts/NotificationUser.aspx?Id=12658&Mode=0",
+          publisher: "Reserve Bank of India",
+          source_type: "regulatory",
+          excerpt: "All Regulated Entities must provide a standardized Key Fact Statement (KFS) to retail borrowers.",
+          published_date: "2024-04-15",
+          verified_date: "2024-10-01",
+          is_potentially_stale: false,
+        },
+      ],
+    };
+
+    vi.spyOn(api, "sendAssistantMessage").mockResolvedValue(mockResponseWithSources);
+
+    render(<AssistantPanel loanContext={dummyContext} />);
+
+    const textarea = screen.getByRole("textbox", { name: /Ask LoanWise AI Assistant/i });
+    fireEvent.change(textarea, { target: { value: "What does RBI mandate about KFS?" } });
+
+    const sendBtn = screen.getByRole("button", { name: /Send message/i });
+    fireEvent.click(sendBtn);
+
+    await waitFor(() => {
+      expect(screen.getByText("RBI KFS Disclosure Mandate")).toBeDefined();
+      expect(screen.getByText("Verified Regulatory & Research Sources")).toBeDefined();
+      expect(screen.getByText("Regulatory Mandate")).toBeDefined();
+      expect(screen.getByText("Reserve Bank of India")).toBeDefined();
+      expect(screen.getByText("Verified: 2024-10-01")).toBeDefined();
+      expect(screen.getByText(/All Regulated Entities must provide a standardized Key Fact Statement/i)).toBeDefined();
+    });
+
+    const link = screen.getByRole("link", { name: /RBI Directions on Key Fact Statement/i });
+    expect(link.getAttribute("href")).toBe("https://www.rbi.org.in/Scripts/NotificationUser.aspx?Id=12658&Mode=0");
+    expect(link.getAttribute("target")).toBe("_blank");
+    expect(link.getAttribute("rel")).toContain("noopener");
+  });
+
+  it("displays warning banner when citation is flagged as potentially stale", async () => {
+    const mockStaleResponse: api.AssistantChatResponse = {
+      headline: "SBI Auto Loan Schedule",
+      message: "SBI car loan processing fee is typically 0.25% to 0.75%.",
+      advantages: [],
+      risks: ["Lender fee waivers vary"],
+      recommended_action: "Verify current fee waivers directly with SBI.",
+      assumptions: [],
+      tool_calls_used: [],
+      needs_more_information: false,
+      sources: [
+        {
+          title: "State Bank of India: Retail Auto Loan Schedule of Fees",
+          url: "https://sbi.co.in/web/personal-banking/loans/auto-loans",
+          publisher: "State Bank of India",
+          source_type: "lender_disclosure",
+          excerpt: "Standard processing fee is 0.25% to 0.75% of sanctioned loan amount.",
+          published_date: "2024-01-01",
+          verified_date: "2024-05-15",
+          is_potentially_stale: true,
+        },
+      ],
+    };
+
+    vi.spyOn(api, "sendAssistantMessage").mockResolvedValue(mockStaleResponse);
+
+    render(<AssistantPanel loanContext={dummyContext} />);
+
+    const textarea = screen.getByRole("textbox", { name: /Ask LoanWise AI Assistant/i });
+    fireEvent.change(textarea, { target: { value: "What are SBI processing fees?" } });
+
+    const sendBtn = screen.getByRole("button", { name: /Send message/i });
+    fireEvent.click(sendBtn);
+
+    await waitFor(() => {
+      expect(screen.getByText("Lender Disclosure")).toBeDefined();
+      expect(screen.getByText(/Notice:/i)).toBeDefined();
+      expect(screen.getByText(/Verification date is older than 90 days/i)).toBeDefined();
+    });
+  });
 });

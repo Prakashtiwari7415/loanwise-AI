@@ -1,6 +1,7 @@
 import { FormEvent, useMemo, useState } from "react";
 import { calculateAffordability, calculateLoan, calculateScenarios, type Affordability, type LoanContext, type LoanSummary, type RateScenario } from "./api";
-import { AssistantPanel } from "./AssistantPanel";
+import { AssistantPanel, type ExternalAssistantAction } from "./AssistantPanel";
+import { KfsAnalysisSection } from "./KfsAnalysisSection";
 
 
 type FormValues = {
@@ -43,6 +44,7 @@ function App() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [showDetails, setShowDetails] = useState(false);
+  const [externalAction, setExternalAction] = useState<ExternalAssistantAction | null>(null);
 
   const loanAmount = useMemo(() => Math.max(0, values.carPrice - values.downPayment), [values]);
   const activeLoanContext: LoanContext = useMemo(() => ({
@@ -55,8 +57,19 @@ function App() {
     existing_emis: values.existingEmis >= 0 ? values.existingEmis : undefined,
     estimated_monthly_expenses: values.expenses >= 0 ? values.expenses : undefined,
   }), [loanAmount, values]);
-  const highestScenarioEmi = useMemo(
+  const activePlanSummary = useMemo(() => {
+    if (!loan) return null;
+    return {
+      loanAmount,
+      interestRate: values.interestRate,
+      tenure: values.tenure,
+      emi: loan.emi,
+      total_interest: loan.total_interest,
+      total_borrowing_cost: loan.total_borrowing_cost,
+    };
+  }, [loan, loanAmount, values]);
 
+  const highestScenarioEmi = useMemo(
     () => Math.max(...scenarios.map((scenario) => Number(scenario.emi)), 1),
     [scenarios],
   );
@@ -81,7 +94,16 @@ function App() {
 
   const scoreTone = affordability && affordability.score < 60 ? "warning" : "good";
   return <main>
-    <nav><a className="brand" href="#top" aria-label="LoanWise home"><i>↗</i> LoanWise <em>AI</em></a><span>Car loan planner</span><a href="#disclaimer">How it works</a></nav>
+    <nav>
+      <a className="brand" href="#top" aria-label="LoanWise home"><i>↗</i> LoanWise <em>AI</em></a>
+      <span>Car loan decision platform</span>
+      <div className="nav-links">
+        <a href="#top">01 / Plan</a>
+        <a href="#kfs-section">02 / KFS Document</a>
+        <a href="#assistant-panel-section">03 / AI Assistant</a>
+        <a href="#disclaimer">How it works</a>
+      </div>
+    </nav>
     <section className="hero" id="top"><div><p className="eyebrow">CAR LOAN DECISION SUPPORT</p><h1>Understand your loan<br /><strong>in 60 seconds.</strong></h1><p className="lede">See the real monthly cost, affordability and rate-risk before you commit.</p></div><div className="hero-chip"><span>Built for decisions</span><b>Not loan approvals</b></div></section>
     <section className="workspace">
       <form className="calculator" onSubmit={submit}>
@@ -112,7 +134,23 @@ function App() {
         </>}
       </section>
     </section>
-    <AssistantPanel loanContext={activeLoanContext} />
+    <div id="kfs-section">
+      <KfsAnalysisSection
+        activePlan={activePlanSummary}
+        onAskAssistant={(prompt, ctx) =>
+          setExternalAction({
+            prompt,
+            context: ctx ?? activeLoanContext,
+            timestamp: Date.now(),
+          })
+        }
+      />
+    </div>
+    <AssistantPanel
+      loanContext={activeLoanContext}
+      externalAction={externalAction}
+      onClearExternalAction={() => setExternalAction(null)}
+    />
     {scenarios.length > 0 && <section className="scenario"><div><p className="eyebrow">WHAT IF RATES RISE?</p><h2>Your rate sensitivity</h2><p>For a floating-rate loan, the lender may adjust EMI, tenure or both. This is a cost illustration, not a forecast.</p></div><div className="scenario-bars">{scenarios.map((scenario, index) => <article key={scenario.annual_interest_rate}><span>{scenario.annual_interest_rate}%</span><div className="bar"><i style={{ width: `${Math.max(12, Number(scenario.emi) / highestScenarioEmi * 100)}%` }} /></div><b>{inr(scenario.emi)}<small>{index ? ` +${inr(scenario.additional_monthly_cost)}/mo` : " current"}</small></b></article>)}</div></section>}
     <footer id="disclaimer"><b>LoanWise AI</b><p>This tool provides educational and decision-support analysis. It does not guarantee loan approval and does not replace professional financial advice.</p></footer>
   </main>;

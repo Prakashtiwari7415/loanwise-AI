@@ -33,13 +33,17 @@ def get_llm_provider(settings: Settings = Depends(get_settings)) -> LLMProvider:
 
 
 
+from app.rag import get_default_retriever
+
+
 def get_assistant_service(
     settings: Settings = Depends(get_settings),
     provider: LLMProvider = Depends(get_llm_provider),
 ) -> AssistantService:
-    """Instantiate AssistantService with configured operational bounds."""
+    """Instantiate AssistantService with configured operational bounds and knowledge retriever."""
     return AssistantService(
         provider=provider,
+        retriever=get_default_retriever(),
         max_turns=settings.llm_max_turns,
         max_tool_calls=settings.llm_max_tool_calls,
     )

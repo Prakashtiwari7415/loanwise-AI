@@ -9,7 +9,11 @@ from typing import Any
 
 from pydantic import ValidationError
 
-from app.assistant.prompts import SYSTEM_PROMPT, format_loan_context_prompt
+from app.assistant.prompts import (
+    SYSTEM_PROMPT,
+    format_loan_context_prompt,
+    format_rag_evidence_prompt,
+)
 from app.assistant.provider import (
     ChatMessage,
     LLMProvider,
@@ -18,29 +22,42 @@ from app.assistant.provider import (
 )
 from app.assistant.schemas import AssistantChatRequest, AssistantChatResponse
 from app.assistant.tools.registry import execute_tool, get_tool_definitions
+from app.rag import KnowledgeRetriever, RetrievalResult, SourceCitation, get_default_retriever, to_citation
 
 logger = logging.getLogger(__name__)
 
 
 class AssistantService:
-    """Orchestrates conversations, tool calling, and structured response extraction."""
+    """Orchestrates conversations, tool calling, grounded RAG evidence, and structured response extraction."""
 
     def __init__(
         self,
         provider: LLMProvider,
+        retriever: KnowledgeRetriever | None = None,
         max_turns: int = 5,
         max_tool_calls: int = 5,
     ) -> None:
         self.provider = provider
+        self.retriever = retriever if retriever is not None else get_default_retriever()
         self.max_turns = max_turns
         self.max_tool_calls = max_tool_calls
 
     async def chat(self, request: AssistantChatRequest) -> AssistantChatResponse:
         """Run the bounded agent orchestration loop and return a validated structured response."""
-        # 1. Prepare initial conversation history
+        # 1. Retrieve grounded knowledge evidence
+        retrieval_results: list[RetrievalResult] = []
+        if self.retriever:
+            retrieval_results = self.retriever.retrieve(request.message, top_k=3)
+
+        # 2. Prepare initial conversation history
         messages: list[ChatMessage] = [
             ChatMessage(role="system", content=SYSTEM_PROMPT)
         ]
+
+        # Inject grounded RAG evidence
+        evidence_prompt = format_rag_evidence_prompt(retrieval_results)
+        messages.append(ChatMessage(role="system", content=evidence_prompt))
+
         context_prompt = format_loan_context_prompt(request.loan_context)
         if context_prompt:
             messages.append(ChatMessage(role="system", content=context_prompt))
@@ -51,13 +68,13 @@ class AssistantService:
         executed_tools: list[str] = []
         total_tool_calls = 0
 
-        # 2. Agent orchestration loop
+        # 3. Agent orchestration loop
         for _ in range(self.max_turns):
             response = await self.provider.generate_response(messages, tools=tool_defs)
 
             # If no tool calls were requested, parse final structured output
             if not response.tool_calls:
-                return self._parse_structured_response(response.content, executed_tools)
+                return self._parse_structured_response(response.content, executed_tools, retrieval_results)
 
             # Record assistant turn with requested tool calls
             messages.append(
@@ -102,7 +119,7 @@ class AssistantService:
 
         # If turn limit reached without final text, request one final turn without tools
         final_response = await self.provider.generate_response(messages, tools=None)
-        return self._parse_structured_response(final_response.content, executed_tools)
+        return self._parse_structured_response(final_response.content, executed_tools, retrieval_results)
 
     def _extract_json_string(self, text: str) -> str:
         """Strip markdown code fences or extract the first JSON object."""
@@ -119,9 +136,12 @@ class AssistantService:
         return cleaned
 
     def _parse_structured_response(
-        self, content: str | None, executed_tools: list[str]
+        self,
+        content: str | None,
+        executed_tools: list[str],
+        retrieval_results: list[RetrievalResult] | None = None,
     ) -> AssistantChatResponse:
-        """Parse and strictly validate the structured JSON response."""
+        """Parse and strictly validate the structured JSON response with grounded tool calls and citations."""
         if not content or not content.strip():
             raise ProviderInvalidResponseError("Provider returned an empty response.")
 
@@ -133,6 +153,43 @@ class AssistantService:
 
             # Ground tool calls: ensure recorded tool calls match deterministic engine invocations
             parsed["tool_calls_used"] = list(dict.fromkeys(executed_tools))
+
+            # Ground sources and citations against actually retrieved evidence
+            retrieved = retrieval_results or []
+            verified_by_title: dict[str, SourceCitation] = {
+                r.chunk.title.strip().lower(): to_citation(r) for r in retrieved
+            }
+            verified_by_url: dict[str, SourceCitation] = {
+                r.chunk.url.strip().lower(): to_citation(r)
+                for r in retrieved
+                if r.chunk.url
+            }
+
+            model_sources = parsed.get("sources")
+            grounded_sources: list[dict[str, Any]] = []
+
+            if isinstance(model_sources, list) and model_sources:
+                for item in model_sources:
+                    if isinstance(item, dict):
+                        title_key = str(item.get("title", "")).strip().lower()
+                        url_key = str(item.get("url", "")).strip().lower()
+                        matched_cit = verified_by_title.get(title_key) or verified_by_url.get(url_key)
+                        if matched_cit:
+                            cit_data = matched_cit.model_dump()
+                            if item.get("excerpt"):
+                                cit_data["excerpt"] = str(item["excerpt"])[:300]
+                            grounded_sources.append(cit_data)
+                        elif not retrieved:
+                            logger.warning("Rejected hallucinated citation without evidence: %s", item.get("title"))
+            elif retrieved:
+                seen_titles: set[str] = set()
+                for r in retrieved:
+                    cit = to_citation(r)
+                    if cit.title not in seen_titles:
+                        seen_titles.add(cit.title)
+                        grounded_sources.append(cit.model_dump())
+
+            parsed["sources"] = grounded_sources
 
             return AssistantChatResponse.model_validate(parsed)
         except (json.JSONDecodeError, ValidationError) as exc:

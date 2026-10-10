@@ -70,6 +70,17 @@ export type AssistantChatRequest = {
   loan_context?: LoanContext;
 };
 
+export type SourceCitation = {
+  title: string;
+  url?: string | null;
+  publisher: string;
+  source_type: "regulatory" | "lender_disclosure" | "educational" | string;
+  excerpt?: string | null;
+  published_date?: string | null;
+  verified_date?: string | null;
+  is_potentially_stale?: boolean;
+};
+
 export type AssistantChatResponse = {
   headline: string;
   message: string;
@@ -79,8 +90,48 @@ export type AssistantChatResponse = {
   assumptions: string[];
   tool_calls_used: string[];
   needs_more_information: boolean;
+  sources?: SourceCitation[];
 };
 
 export function sendAssistantMessage(payload: AssistantChatRequest) {
   return post<AssistantChatResponse>("/api/v1/assistant/chat", payload);
+}
+
+export type DocumentField = {
+  value: string | null;
+  confidence: "high" | "medium" | "needs_review" | "not_found" | string;
+};
+
+export type DocumentAnalysisResponse = {
+  filename: string;
+  extracted_fields: {
+    lender?: DocumentField;
+    loan_amount?: DocumentField;
+    interest_rate?: DocumentField;
+    tenure?: DocumentField;
+    emi?: DocumentField;
+    processing_fee?: DocumentField;
+    other_charges?: DocumentField;
+    apr?: DocumentField;
+    rate_type?: DocumentField;
+    prepayment_terms?: DocumentField;
+    foreclosure_terms?: DocumentField;
+    [key: string]: DocumentField | undefined;
+  };
+  warnings: string[];
+  disclaimer: string;
+};
+
+export async function uploadAndAnalyzeDocument(file: File): Promise<DocumentAnalysisResponse> {
+  const formData = new FormData();
+  formData.append("file", file);
+  const response = await fetch(`${API_BASE}/api/v1/documents/analyze`, {
+    method: "POST",
+    body: formData,
+  });
+  if (!response.ok) {
+    const body = await response.json().catch(() => null);
+    throw new Error(body?.detail ?? "Failed to analyze document.");
+  }
+  return response.json() as Promise<DocumentAnalysisResponse>;
 }
