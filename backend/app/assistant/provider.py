@@ -19,6 +19,10 @@ class ProviderTimeoutError(ProviderError):
     """Exception raised when an LLM provider request times out."""
 
 
+class ProviderQuotaError(ProviderError):
+    """Exception raised when API quota is exhausted or rate limit is exceeded."""
+
+
 class ProviderInvalidResponseError(ProviderError):
     """Exception raised when an LLM provider returns an unparseable or invalid response."""
 

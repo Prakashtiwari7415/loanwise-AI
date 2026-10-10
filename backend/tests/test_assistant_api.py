@@ -203,3 +203,64 @@ async def test_openai_adapter_raises_auth_error_when_api_key_is_missing() -> Non
     empty_adapter = OpenAIAdapter(api_key="   ")
     with pytest.raises(ProviderAuthError):
         await empty_adapter.generate_response([ChatMessage(role="user", content="hello")])
+
+
+def test_gemini_configuration_defaults(monkeypatch: pytest.MonkeyPatch) -> None:
+    from app.core.config import get_settings
+    monkeypatch.setenv("LLM_PROVIDER", "gemini")
+    monkeypatch.delenv("LLM_MODEL", raising=False)
+    monkeypatch.delenv("GEMINI_BASE_URL", raising=False)
+    monkeypatch.delenv("LLM_API_KEY", raising=False)
+    monkeypatch.delenv("GEMINI_API_KEY", raising=False)
+    settings = get_settings()
+    assert settings.llm_provider == "gemini"
+    assert settings.llm_model == "gemini-1.5-flash"
+    assert settings.gemini_base_url == "https://generativelanguage.googleapis.com/v1beta/openai/"
+
+
+def test_gemini_adapter_factory_uses_configured_base_url() -> None:
+    from app.core.config import Settings
+    from app.assistant.factory import get_llm_provider
+    gemini_settings = Settings(
+        environment="development",
+        database_url=None,
+        llm_provider="gemini",
+        llm_api_key="fake-gemini-key",
+        llm_model="gemini-1.5-flash",
+        gemini_base_url="https://generativelanguage.googleapis.com/v1beta/openai/",
+    )
+    provider = get_llm_provider(gemini_settings)
+    assert isinstance(provider, OpenAIAdapter)
+    assert provider.base_url == "https://generativelanguage.googleapis.com/v1beta/openai/"
+    assert provider.provider_name == "gemini"
+    assert provider.model == "gemini-1.5-flash"
+
+
+@pytest.mark.anyio
+async def test_gemini_adapter_raises_auth_error_with_gemini_label() -> None:
+    gemini_adapter = OpenAIAdapter(api_key=None, provider_name="gemini")
+    with pytest.raises(ProviderAuthError) as exc_info:
+        await gemini_adapter.generate_response([ChatMessage(role="user", content="hello")])
+    assert "Gemini API key is missing or not configured" in str(exc_info.value)
+
+
+@pytest.mark.anyio
+async def test_assistant_chat_quota_exhaustion_returns_429() -> None:
+    from app.assistant.provider import ProviderQuotaError
+
+    class QuotaExhaustedProvider(LLMProvider):
+        async def generate_response(self, messages, tools=None):
+            raise ProviderQuotaError("Gemini resource has exhausted quota. Check your plan.")
+
+    app.dependency_overrides[get_llm_provider] = lambda: QuotaExhaustedProvider()
+
+    try:
+        async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="http://test") as client:
+            response = await client.post(
+                "/api/v1/assistant/chat",
+                json={"message": "Calculate my EMI"},
+            )
+        assert response.status_code == 429
+        assert "quota or rate limit exceeded" in response.json()["detail"].lower()
+    finally:
+        app.dependency_overrides.clear()

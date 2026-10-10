@@ -1,5 +1,7 @@
 import { FormEvent, useMemo, useState } from "react";
-import { calculateAffordability, calculateLoan, calculateScenarios, type Affordability, type LoanSummary, type RateScenario } from "./api";
+import { calculateAffordability, calculateLoan, calculateScenarios, type Affordability, type LoanContext, type LoanSummary, type RateScenario } from "./api";
+import { AssistantPanel } from "./AssistantPanel";
+
 
 type FormValues = {
   carPrice: number;
@@ -43,7 +45,18 @@ function App() {
   const [showDetails, setShowDetails] = useState(false);
 
   const loanAmount = useMemo(() => Math.max(0, values.carPrice - values.downPayment), [values]);
+  const activeLoanContext: LoanContext = useMemo(() => ({
+    loan_amount: loanAmount > 0 ? loanAmount : undefined,
+    annual_interest_rate: values.interestRate > 0 ? values.interestRate : undefined,
+    tenure_months: values.tenure > 0 ? values.tenure : undefined,
+    processing_fee: values.processingFee >= 0 ? values.processingFee : undefined,
+    other_charges: 0,
+    monthly_income: values.income > 0 ? values.income : undefined,
+    existing_emis: values.existingEmis >= 0 ? values.existingEmis : undefined,
+    estimated_monthly_expenses: values.expenses >= 0 ? values.expenses : undefined,
+  }), [loanAmount, values]);
   const highestScenarioEmi = useMemo(
+
     () => Math.max(...scenarios.map((scenario) => Number(scenario.emi)), 1),
     [scenarios],
   );
@@ -99,6 +112,7 @@ function App() {
         </>}
       </section>
     </section>
+    <AssistantPanel loanContext={activeLoanContext} />
     {scenarios.length > 0 && <section className="scenario"><div><p className="eyebrow">WHAT IF RATES RISE?</p><h2>Your rate sensitivity</h2><p>For a floating-rate loan, the lender may adjust EMI, tenure or both. This is a cost illustration, not a forecast.</p></div><div className="scenario-bars">{scenarios.map((scenario, index) => <article key={scenario.annual_interest_rate}><span>{scenario.annual_interest_rate}%</span><div className="bar"><i style={{ width: `${Math.max(12, Number(scenario.emi) / highestScenarioEmi * 100)}%` }} /></div><b>{inr(scenario.emi)}<small>{index ? ` +${inr(scenario.additional_monthly_cost)}/mo` : " current"}</small></b></article>)}</div></section>}
     <footer id="disclaimer"><b>LoanWise AI</b><p>This tool provides educational and decision-support analysis. It does not guarantee loan approval and does not replace professional financial advice.</p></footer>
   </main>;

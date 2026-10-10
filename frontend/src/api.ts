@@ -53,3 +53,34 @@ export function calculateAffordability(payload: Record<string, number>) {
 export function calculateScenarios(payload: Record<string, unknown>) {
   return post<RateScenario[]>("/api/v1/loans/scenario", payload);
 }
+
+export type LoanContext = {
+  loan_amount?: number;
+  annual_interest_rate?: number;
+  tenure_months?: number;
+  processing_fee?: number;
+  other_charges?: number;
+  monthly_income?: number;
+  existing_emis?: number;
+  estimated_monthly_expenses?: number;
+};
+
+export type AssistantChatRequest = {
+  message: string;
+  loan_context?: LoanContext;
+};
+
+export type AssistantChatResponse = {
+  headline: string;
+  message: string;
+  advantages: string[];
+  risks: string[];
+  recommended_action: string;
+  assumptions: string[];
+  tool_calls_used: string[];
+  needs_more_information: boolean;
+};
+
+export function sendAssistantMessage(payload: AssistantChatRequest) {
+  return post<AssistantChatResponse>("/api/v1/assistant/chat", payload);
+}

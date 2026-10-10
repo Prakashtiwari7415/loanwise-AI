@@ -15,6 +15,7 @@ from app.assistant.provider import (
     ProviderAuthError,
     ProviderError,
     ProviderInvalidResponseError,
+    ProviderQuotaError,
     ProviderTimeoutError,
     ToolCallRequest,
     ToolDefinition,
@@ -24,7 +25,7 @@ logger = logging.getLogger(__name__)
 
 
 class OpenAIAdapter(LLMProvider):
-    """Adapter for OpenAI models implementing the LLMProvider interface."""
+    """Adapter for OpenAI-compatible models (including Google Gemini) implementing LLMProvider."""
 
     def __init__(
         self,
@@ -32,16 +33,23 @@ class OpenAIAdapter(LLMProvider):
         model: str = "gpt-4o-mini",
         timeout: float = 30.0,
         base_url: str | None = None,
+        provider_name: str = "openai",
     ) -> None:
         self.api_key = api_key
         self.model = model
         self.timeout = timeout
         self.base_url = base_url
+        self.provider_name = provider_name.lower()
         self._client: AsyncOpenAI | None = None
+
+    @property
+    def provider_label(self) -> str:
+        return "Gemini" if self.provider_name == "gemini" else "OpenAI"
 
     def _get_client(self) -> AsyncOpenAI:
         if not self.api_key or not self.api_key.strip():
-            raise ProviderAuthError("OpenAI API key is missing or not configured.")
+            key_hint = "GEMINI_API_KEY or LLM_API_KEY" if self.provider_name == "gemini" else "OPENAI_API_KEY or LLM_API_KEY"
+            raise ProviderAuthError(f"{self.provider_label} API key is missing or not configured. Set {key_hint}.")
         if self._client is None:
             self._client = AsyncOpenAI(
                 api_key=self.api_key,
@@ -49,6 +57,7 @@ class OpenAIAdapter(LLMProvider):
                 base_url=self.base_url,
             )
         return self._client
+
 
     def _convert_messages(self, messages: list[ChatMessage]) -> list[dict[str, Any]]:
         converted: list[dict[str, Any]] = []
@@ -117,26 +126,34 @@ class OpenAIAdapter(LLMProvider):
         if formatted_tools:
             params["tools"] = formatted_tools
 
+        label = self.provider_label
         try:
             response = await client.chat.completions.create(**params)
         except openai.AuthenticationError as exc:
-            logger.error("Authentication error calling OpenAI API: %s", exc)
-            raise ProviderAuthError(f"OpenAI authentication failed: {exc}") from exc
+            logger.error("Authentication error calling %s API: %s", label, exc)
+            raise ProviderAuthError(f"{label} authentication failed: {exc}") from exc
+        except openai.RateLimitError as exc:
+            logger.error("Rate limit / quota error calling %s API: %s", label, exc)
+            raise ProviderQuotaError(f"{label} quota exhausted or rate limit reached: {exc}") from exc
+        except openai.NotFoundError as exc:
+            logger.error("Model not found calling %s API: %s", label, exc)
+            raise ProviderError(f"{label} model '{self.model}' not found or unavailable: {exc}") from exc
         except openai.APITimeoutError as exc:
-            logger.error("Timeout error calling OpenAI API: %s", exc)
-            raise ProviderTimeoutError(f"OpenAI request timed out: {exc}") from exc
+            logger.error("Timeout error calling %s API: %s", label, exc)
+            raise ProviderTimeoutError(f"{label} request timed out: {exc}") from exc
         except openai.APIConnectionError as exc:
-            logger.error("Connection error calling OpenAI API: %s", exc)
-            raise ProviderError(f"OpenAI connection error: {exc}") from exc
+            logger.error("Connection error calling %s API: %s", label, exc)
+            raise ProviderError(f"{label} connection error: {exc}") from exc
         except openai.APIError as exc:
-            logger.error("OpenAI API error: %s", exc)
-            raise ProviderError(f"OpenAI API returned error: {exc}") from exc
+            logger.error("%s API error: %s", label, exc)
+            raise ProviderError(f"{label} API returned error: {exc}") from exc
         except Exception as exc:
-            logger.error("Unexpected error calling OpenAI API: %s", exc)
-            raise ProviderError(f"Unexpected provider error: {exc}") from exc
+            logger.error("Unexpected error calling %s API: %s", label, exc)
+            raise ProviderError(f"Unexpected provider error from {label}: {exc}") from exc
 
         if not response.choices:
-            raise ProviderInvalidResponseError("OpenAI returned no choices.")
+            raise ProviderInvalidResponseError(f"{label} returned no choices.")
+
 
         choice = response.choices[0]
         tool_calls: list[ToolCallRequest] = []

@@ -13,13 +13,24 @@ from app.core.config import Settings, get_settings
 def get_llm_provider(settings: Settings = Depends(get_settings)) -> LLMProvider:
     """Instantiate the configured LLM provider adapter."""
     provider_name = settings.llm_provider.lower()
+    if provider_name == "gemini":
+        return OpenAIAdapter(
+            api_key=settings.llm_api_key,
+            model=settings.llm_model,
+            timeout=settings.llm_timeout_seconds,
+            base_url=settings.gemini_base_url,
+            provider_name="gemini",
+        )
     if provider_name == "openai":
         return OpenAIAdapter(
             api_key=settings.llm_api_key,
             model=settings.llm_model,
             timeout=settings.llm_timeout_seconds,
+            base_url=None,
+            provider_name="openai",
         )
     raise ProviderAuthError(f"Unsupported LLM provider: '{settings.llm_provider}'")
+
 
 
 def get_assistant_service(

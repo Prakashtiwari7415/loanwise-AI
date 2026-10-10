@@ -10,6 +10,7 @@ from app.assistant.provider import (
     ProviderAuthError,
     ProviderError,
     ProviderInvalidResponseError,
+    ProviderQuotaError,
     ProviderTimeoutError,
 )
 from app.assistant.schemas import AssistantChatRequest, AssistantChatResponse
@@ -34,7 +35,14 @@ async def chat_with_assistant(
             status_code=503,
             detail="AI Assistant service is not configured. Missing or invalid API key.",
         ) from exc
+    except ProviderQuotaError as exc:
+        logger.warning("Provider quota exhausted or rate limit hit: %s", exc)
+        raise HTTPException(
+            status_code=429,
+            detail=f"AI Assistant quota or rate limit exceeded: {str(exc)}",
+        ) from exc
     except ProviderTimeoutError as exc:
+
         logger.error("Provider timed out: %s", exc)
         raise HTTPException(
             status_code=504,
