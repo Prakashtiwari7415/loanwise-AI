@@ -42,7 +42,7 @@ class Settings:
     database_url: str | None
     llm_provider: str = "gemini"
     llm_api_key: str | None = None
-    llm_model: str = "gemini-1.5-flash"
+    llm_model: str = "gemini-2.5-flash"
     llm_timeout_seconds: float = 30.0
     llm_max_tool_calls: int = 5
     llm_max_turns: int = 5
@@ -72,12 +72,14 @@ def get_settings() -> Settings:
 
     if provider == "gemini":
         api_key = os.getenv("LLM_API_KEY", "").strip() or os.getenv("GEMINI_API_KEY", "").strip()
-        default_model = "gemini-1.5-flash"
+        default_model = "gemini-2.5-flash"
     else:
         api_key = os.getenv("LLM_API_KEY", "").strip() or os.getenv("OPENAI_API_KEY", "").strip()
         default_model = "gpt-4o-mini"
 
     model = os.getenv("LLM_MODEL", "").strip() or default_model
+    if provider == "gemini" and model in ("gemini-1.5-flash", "gemini-1.5-pro", "gemini-2.0-flash"):
+        model = "gemini-2.5-flash"
 
     try:
         timeout = float(os.getenv("LLM_TIMEOUT_SECONDS", "30.0"))

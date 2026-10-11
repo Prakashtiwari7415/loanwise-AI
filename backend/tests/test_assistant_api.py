@@ -214,8 +214,16 @@ def test_gemini_configuration_defaults(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.delenv("GEMINI_API_KEY", raising=False)
     settings = get_settings()
     assert settings.llm_provider == "gemini"
-    assert settings.llm_model == "gemini-1.5-flash"
+    assert settings.llm_model == "gemini-2.5-flash"
     assert settings.gemini_base_url == "https://generativelanguage.googleapis.com/v1beta/openai/"
+
+
+def test_gemini_configuration_auto_upgrades_deprecated_model(monkeypatch: pytest.MonkeyPatch) -> None:
+    from app.core.config import get_settings
+    monkeypatch.setenv("LLM_PROVIDER", "gemini")
+    monkeypatch.setenv("LLM_MODEL", "gemini-1.5-flash")
+    settings = get_settings()
+    assert settings.llm_model == "gemini-2.5-flash"
 
 
 def test_gemini_adapter_factory_uses_configured_base_url() -> None:
@@ -226,14 +234,14 @@ def test_gemini_adapter_factory_uses_configured_base_url() -> None:
         database_url=None,
         llm_provider="gemini",
         llm_api_key="fake-gemini-key",
-        llm_model="gemini-1.5-flash",
+        llm_model="gemini-2.5-flash",
         gemini_base_url="https://generativelanguage.googleapis.com/v1beta/openai/",
     )
     provider = get_llm_provider(gemini_settings)
     assert isinstance(provider, OpenAIAdapter)
     assert provider.base_url == "https://generativelanguage.googleapis.com/v1beta/openai/"
     assert provider.provider_name == "gemini"
-    assert provider.model == "gemini-1.5-flash"
+    assert provider.model == "gemini-2.5-flash"
 
 
 @pytest.mark.anyio

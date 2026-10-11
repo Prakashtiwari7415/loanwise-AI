@@ -100,6 +100,7 @@ export function sendAssistantMessage(payload: AssistantChatRequest) {
 export type DocumentField = {
   value: string | null;
   confidence: "high" | "medium" | "needs_review" | "not_found" | string;
+  page_number?: number | null;
 };
 
 export type DocumentAnalysisResponse = {
@@ -134,4 +135,29 @@ export async function uploadAndAnalyzeDocument(file: File): Promise<DocumentAnal
     throw new Error(body?.detail ?? "Failed to analyze document.");
   }
   return response.json() as Promise<DocumentAnalysisResponse>;
+}
+
+export type OfferToCompare = {
+  lender: string;
+  loan_amount: number;
+  annual_interest_rate: number;
+  tenure_months: number;
+  processing_fee: number;
+  other_charges: number;
+  rate_type?: "fixed" | "floating";
+};
+
+export type CompareRecommendation = {
+  lender: string;
+  score: number;
+  reasons: string[];
+  risks: string[];
+  assumptions: string[];
+};
+
+export function compareLoans(offers: OfferToCompare[], objective: string = "lowest_total_cost") {
+  return post<CompareRecommendation>("/api/v1/loans/compare", {
+    offers,
+    objective,
+  });
 }

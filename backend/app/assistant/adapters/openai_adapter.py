@@ -36,10 +36,13 @@ class OpenAIAdapter(LLMProvider):
         provider_name: str = "openai",
     ) -> None:
         self.api_key = api_key
-        self.model = model
         self.timeout = timeout
         self.base_url = base_url
         self.provider_name = provider_name.lower()
+        if self.provider_name == "gemini" and model in ("gemini-1.5-flash", "gemini-1.5-pro", "gemini-2.0-flash"):
+            self.model = "gemini-2.5-flash"
+        else:
+            self.model = model
         self._client: AsyncOpenAI | None = None
 
     @property
