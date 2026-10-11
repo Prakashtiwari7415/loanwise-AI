@@ -51,7 +51,7 @@ export function AssistantPanel({ loanContext, externalAction, onClearExternalAct
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+    messagesEndRef.current?.scrollIntoView?.({ behavior: "smooth" });
   }, [messages, loading]);
 
   useEffect(() => {
@@ -60,7 +60,7 @@ export function AssistantPanel({ loanContext, externalAction, onClearExternalAct
       onClearExternalAction?.();
       const el = document.getElementById("assistant-panel-section");
       if (el) {
-        el.scrollIntoView({ behavior: "smooth" });
+        el.scrollIntoView?.({ behavior: "smooth" });
       }
     }
   }, [externalAction]);

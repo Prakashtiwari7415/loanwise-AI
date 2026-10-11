@@ -498,7 +498,7 @@ export function KfsAnalysisSection({
           <div className="dropzone-content">
             <div className="dropzone-icon">📄</div>
             <p className="dropzone-title">
-              <strong>Click to upload</strong> or drag & drop your KFS PDF
+              <strong>Click to upload</strong> or tap to select your KFS PDF
             </p>
             <p className="dropzone-hint">Standard RBI-mandated KFS or sanction letter (PDF, max 8 MB)</p>
           </div>
@@ -949,6 +949,7 @@ export function KfsAnalysisSection({
                     <span>Loan Amount (₹)</span>
                     <input
                       type="number"
+                      inputMode="decimal"
                       placeholder="e.g. 500000"
                       value={manualAmount}
                       onChange={(e) => setManualAmount(e.target.value)}
@@ -961,6 +962,7 @@ export function KfsAnalysisSection({
                     <span>Interest Rate (%)</span>
                     <input
                       type="number"
+                      inputMode="decimal"
                       step="0.05"
                       placeholder="e.g. 8.75"
                       value={manualRate}
@@ -974,6 +976,7 @@ export function KfsAnalysisSection({
                     <span>Tenure (Months, min 12)</span>
                     <input
                       type="number"
+                      inputMode="numeric"
                       placeholder="e.g. 60"
                       value={manualTenure}
                       onChange={(e) => setManualTenure(e.target.value)}

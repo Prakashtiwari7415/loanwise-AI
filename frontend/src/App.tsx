@@ -63,6 +63,7 @@ function Field({
           min={min}
           step={step}
           type="number"
+          inputMode="decimal"
           value={value}
           onChange={(event) => onChange(Number(event.target.value))}
         />
@@ -200,7 +201,7 @@ function App() {
   return (
     <main>
       {/* Universal Navigation */}
-      <nav aria-label="Main Navigation">
+      <nav className="main-nav" aria-label="Main Navigation">
         <a className="brand" href="#top" aria-label="LoanWise home">
           <i>↗</i> LoanWise <em>AI</em>
         </a>
@@ -213,6 +214,15 @@ function App() {
             Change
           </a>
         </div>
+
+        <button
+          type="button"
+          className="mobile-guide-trigger-btn"
+          onClick={() => setShowGuideModal(true)}
+          aria-label="Open how to use guide"
+        >
+          📖 Guide
+        </button>
 
         <div className="nav-links">
           <button
@@ -565,6 +575,30 @@ function App() {
           deterministic and based on disclosed inputs and official Reserve Bank of India (RBI) regulations.
         </p>
       </footer>
+
+      {/* Mobile Bottom Navigation Bar */}
+      <nav className="mobile-bottom-nav" aria-label="Mobile Navigation">
+        <a href="#explore-loans" className="mobile-nav-item" aria-label="Loan Categories">
+          <span className="mobile-nav-icon" aria-hidden="true">🏷️</span>
+          <span className="mobile-nav-label">Loans</span>
+        </a>
+        <a href="#calculator-section" className="mobile-nav-item" aria-label="Loan Calculator">
+          <span className="mobile-nav-icon" aria-hidden="true">🧮</span>
+          <span className="mobile-nav-label">Calculator</span>
+        </a>
+        <a href="#compare-section" className="mobile-nav-item" aria-label="Compare Offers">
+          <span className="mobile-nav-icon" aria-hidden="true">⚖️</span>
+          <span className="mobile-nav-label">Compare</span>
+        </a>
+        <a href="#kfs-section" className="mobile-nav-item" aria-label="KFS Document Analysis">
+          <span className="mobile-nav-icon" aria-hidden="true">📄</span>
+          <span className="mobile-nav-label">KFS Doc</span>
+        </a>
+        <a href="#assistant-panel-section" className="mobile-nav-item" aria-label="AI Assistant">
+          <span className="mobile-nav-icon" aria-hidden="true">💬</span>
+          <span className="mobile-nav-label">Assistant</span>
+        </a>
+      </nav>
     </main>
   );
 }

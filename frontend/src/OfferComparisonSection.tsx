@@ -154,6 +154,7 @@ export function OfferComparisonSection({
                 <b>₹</b>
                 <input
                   type="number"
+                  inputMode="decimal"
                   value={offerA.loanAmount}
                   onChange={(e) => setOfferA({ ...offerA, loanAmount: Number(e.target.value) })}
                   aria-label="Offer A Loan Amount"
@@ -167,6 +168,7 @@ export function OfferComparisonSection({
                 <b>%</b>
                 <input
                   type="number"
+                  inputMode="decimal"
                   step="0.05"
                   value={offerA.interestRate}
                   onChange={(e) => setOfferA({ ...offerA, interestRate: Number(e.target.value) })}
@@ -181,6 +183,7 @@ export function OfferComparisonSection({
                 <b>📅</b>
                 <input
                   type="number"
+                  inputMode="numeric"
                   step="12"
                   value={offerA.tenure}
                   onChange={(e) => setOfferA({ ...offerA, tenure: Number(e.target.value) })}
@@ -195,6 +198,7 @@ export function OfferComparisonSection({
                 <b>₹</b>
                 <input
                   type="number"
+                  inputMode="decimal"
                   value={offerA.processingFee}
                   onChange={(e) => setOfferA({ ...offerA, processingFee: Number(e.target.value) })}
                   aria-label="Offer A Processing Fee"
@@ -224,6 +228,7 @@ export function OfferComparisonSection({
                 <b>₹</b>
                 <input
                   type="number"
+                  inputMode="decimal"
                   value={offerB.loanAmount}
                   onChange={(e) => setOfferB({ ...offerB, loanAmount: Number(e.target.value) })}
                   aria-label="Offer B Loan Amount"
@@ -237,6 +242,7 @@ export function OfferComparisonSection({
                 <b>%</b>
                 <input
                   type="number"
+                  inputMode="decimal"
                   step="0.05"
                   value={offerB.interestRate}
                   onChange={(e) => setOfferB({ ...offerB, interestRate: Number(e.target.value) })}
@@ -251,6 +257,7 @@ export function OfferComparisonSection({
                 <b>📅</b>
                 <input
                   type="number"
+                  inputMode="numeric"
                   step="12"
                   value={offerB.tenure}
                   onChange={(e) => setOfferB({ ...offerB, tenure: Number(e.target.value) })}
@@ -265,6 +272,7 @@ export function OfferComparisonSection({
                 <b>₹</b>
                 <input
                   type="number"
+                  inputMode="decimal"
                   value={offerB.processingFee}
                   onChange={(e) => setOfferB({ ...offerB, processingFee: Number(e.target.value) })}
                   aria-label="Offer B Processing Fee"
@@ -309,9 +317,16 @@ export function OfferComparisonSection({
 
             <div className="results-row">
               <span className="metric-name">Monthly EMI</span>
-              <span className="col-val col-a">{inr(summaryA.emi)}</span>
-              <span className="col-val col-b">{inr(summaryB.emi)}</span>
+              <span className="col-val col-a">
+                <span className="mobile-lender-label">{offerA.lender}: </span>
+                {inr(summaryA.emi)}
+              </span>
+              <span className="col-val col-b">
+                <span className="mobile-lender-label">{offerB.lender}: </span>
+                {inr(summaryB.emi)}
+              </span>
               <span className="col-diff">
+                <span className="mobile-lender-label">Diff: </span>
                 {parseFloat(summaryA.emi) < parseFloat(summaryB.emi)
                   ? `${offerA.lender} is lower by ${inr(parseFloat(summaryB.emi) - parseFloat(summaryA.emi))}/mo`
                   : `${offerB.lender} is lower by ${inr(parseFloat(summaryA.emi) - parseFloat(summaryB.emi))}/mo`}
@@ -320,9 +335,16 @@ export function OfferComparisonSection({
 
             <div className="results-row">
               <span className="metric-name">Total Interest</span>
-              <span className="col-val col-a">{inr(summaryA.total_interest)}</span>
-              <span className="col-val col-b">{inr(summaryB.total_interest)}</span>
+              <span className="col-val col-a">
+                <span className="mobile-lender-label">{offerA.lender}: </span>
+                {inr(summaryA.total_interest)}
+              </span>
+              <span className="col-val col-b">
+                <span className="mobile-lender-label">{offerB.lender}: </span>
+                {inr(summaryB.total_interest)}
+              </span>
               <span className="col-diff">
+                <span className="mobile-lender-label">Diff: </span>
                 {parseFloat(summaryA.total_interest) < parseFloat(summaryB.total_interest)
                   ? `${offerA.lender} saves ${inr(parseFloat(summaryB.total_interest) - parseFloat(summaryA.total_interest))}`
                   : `${offerB.lender} saves ${inr(parseFloat(summaryA.total_interest) - parseFloat(summaryB.total_interest))}`}
@@ -331,9 +353,16 @@ export function OfferComparisonSection({
 
             <div className="results-row">
               <span className="metric-name">Processing Fee</span>
-              <span className="col-val col-a">{inr(offerA.processingFee)}</span>
-              <span className="col-val col-b">{inr(offerB.processingFee)}</span>
+              <span className="col-val col-a">
+                <span className="mobile-lender-label">{offerA.lender}: </span>
+                {inr(offerA.processingFee)}
+              </span>
+              <span className="col-val col-b">
+                <span className="mobile-lender-label">{offerB.lender}: </span>
+                {inr(offerB.processingFee)}
+              </span>
               <span className="col-diff">
+                <span className="mobile-lender-label">Diff: </span>
                 Diff: {inr(Math.abs(offerA.processingFee - offerB.processingFee))}
               </span>
             </div>
@@ -344,9 +373,11 @@ export function OfferComparisonSection({
                 <small>(Principal + Interest + Fees)</small>
               </span>
               <span className="col-val col-a">
+                <span className="mobile-lender-label">{offerA.lender}: </span>
                 <strong>{inr(summaryA.total_borrowing_cost)}</strong>
               </span>
               <span className="col-val col-b">
+                <span className="mobile-lender-label">{offerB.lender}: </span>
                 <strong>{inr(summaryB.total_borrowing_cost)}</strong>
               </span>
               <span className="col-diff highlight-diff">
