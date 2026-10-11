@@ -41,6 +41,8 @@ async def lifespan(_: FastAPI):
     if settings.is_production:
         if settings.database_url is None:
             raise RuntimeError("DATABASE_URL must be configured in production")
+        if "*" in settings.cors_origins:
+            raise RuntimeError("Wildcard CORS origin '*' is strictly prohibited in production")
         with get_engine().connect() as connection:
             connection.execute(text("SELECT 1"))
     yield
@@ -53,19 +55,13 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
-origins = [
-    origin.strip()
-    for origin in os.getenv(
-        "CORS_ORIGINS", "http://localhost:5173,http://127.0.0.1:5173"
-    ).split(",")
-    if origin.strip()
-]
+settings = get_settings()
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=origins,
+    allow_origins=list(settings.cors_origins),
     allow_credentials=False,
-    allow_methods=["GET", "POST"],
-    allow_headers=["Content-Type"],
+    allow_methods=["GET", "POST", "OPTIONS"],
+    allow_headers=["*"],
 )
 
 MAX_DOCUMENT_BYTES = 8 * 1024 * 1024
@@ -208,3 +204,10 @@ async def analyse_document(file: UploadFile = File(...)) -> object:
 
 
 app.include_router(assistant_router)
+
+
+if __name__ == "__main__":
+    import uvicorn
+
+    port = int(os.getenv("PORT", "8000"))
+    uvicorn.run("app.main:app", host="0.0.0.0", port=port, reload=False)

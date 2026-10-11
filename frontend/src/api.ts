@@ -26,8 +26,12 @@ export type RateScenario = {
   additional_total_interest: string;
 };
 
-const API_BASE = import.meta.env.VITE_API_BASE_URL
-  ?? `${window.location.protocol}//${window.location.hostname}:8000`;
+const rawEnvUrl = (import.meta.env.VITE_API_BASE_URL as string | undefined)?.trim();
+const defaultBase =
+  typeof window !== "undefined" && window.location?.hostname
+    ? `${window.location.protocol}//${window.location.hostname}:8000`
+    : "http://localhost:8000";
+const API_BASE = (rawEnvUrl && rawEnvUrl.length > 0 ? rawEnvUrl : defaultBase).replace(/\/+$/, "");
 
 async function post<T>(path: string, payload: unknown): Promise<T> {
   const response = await fetch(`${API_BASE}${path}`, {

@@ -3,8 +3,44 @@
 from __future__ import annotations
 
 import os
+import urllib.parse
 from dataclasses import dataclass
 from pathlib import Path
+
+
+def normalize_database_url(url: str | None) -> str | None:
+    """Normalize PostgreSQL connection strings for psycopg v3 and Neon SSL.
+
+    Converts legacy 'postgres://' or standard 'postgresql://' URLs to
+    'postgresql+psycopg://' so SQLAlchemy loads the installed psycopg 3 driver.
+    Ensures 'sslmode=require' is present for remote hosts such as Neon.
+    """
+    if not url:
+        return None
+    url = url.strip()
+    if not url:
+        return None
+
+    if url.startswith("postgres://"):
+        url = "postgresql+psycopg://" + url[len("postgres://"):]
+    elif url.startswith("postgresql://"):
+        url = "postgresql+psycopg://" + url[len("postgresql://"):]
+
+    if url.startswith("postgresql+psycopg://"):
+        try:
+            parsed = urllib.parse.urlparse(url)
+            host = (parsed.hostname or "").lower()
+            is_local = host in ("localhost", "127.0.0.1", "0.0.0.0", "db", "postgres") or host.endswith(".local")
+            if not is_local and host:
+                query_params = urllib.parse.parse_qs(parsed.query, keep_blank_values=True)
+                if "sslmode" not in query_params:
+                    query_params["sslmode"] = ["require"]
+                    new_query = urllib.parse.urlencode(query_params, doseq=True)
+                    url = urllib.parse.urlunparse(parsed._replace(query=new_query))
+        except Exception:
+            pass
+
+    return url
 
 
 def _load_dotenv_if_exists() -> None:
@@ -40,6 +76,7 @@ _load_dotenv_if_exists()
 class Settings:
     environment: str
     database_url: str | None
+    cors_origins: tuple[str, ...] = ("http://localhost:5173", "http://127.0.0.1:5173")
     llm_provider: str = "gemini"
     llm_api_key: str | None = None
     llm_model: str = "gemini-2.5-flash"
@@ -55,7 +92,22 @@ class Settings:
 
 
 def get_settings() -> Settings:
-    database_url = os.getenv("DATABASE_URL", "").strip()
+    raw_env = os.getenv("ENVIRONMENT", "development").strip()
+    is_production = raw_env.lower() == "production"
+
+    raw_cors = os.getenv("CORS_ORIGINS", "").strip()
+    if raw_cors:
+        cors_origins = tuple(origin.strip() for origin in raw_cors.split(",") if origin.strip())
+    else:
+        cors_origins = ("http://localhost:5173", "http://127.0.0.1:5173")
+
+    if is_production and "*" in cors_origins:
+        raise ValueError(
+            "Wildcard CORS origin '*' is strictly prohibited in production. "
+            "Please configure explicit frontend domain(s) in CORS_ORIGINS."
+        )
+
+    database_url = normalize_database_url(os.getenv("DATABASE_URL", "").strip())
     env_provider = os.getenv("LLM_PROVIDER", "").strip().lower()
     if not env_provider:
         if os.getenv("OPENAI_API_KEY") and not (os.getenv("GEMINI_API_KEY") or os.getenv("LLM_API_KEY")):
@@ -99,8 +151,9 @@ def get_settings() -> Settings:
         max_input_length = 4000
 
     return Settings(
-        environment=os.getenv("ENVIRONMENT", "development"),
+        environment=raw_env,
         database_url=database_url or None,
+        cors_origins=cors_origins,
         llm_provider=provider,
         llm_api_key=api_key or None,
         llm_model=model,

@@ -8,7 +8,7 @@ from contextlib import contextmanager
 from sqlalchemy import Engine, create_engine
 from sqlalchemy.orm import Session, sessionmaker
 
-from app.core.config import get_settings
+from app.core.config import get_settings, normalize_database_url
 
 _engine: Engine | None = None
 _session_factory: sessionmaker[Session] | None = None
@@ -23,10 +23,14 @@ def configure_database(database_url: str) -> None:
     global _engine, _session_factory
     if _engine is not None:
         _engine.dispose()
+    normalized_url = normalize_database_url(database_url) or database_url
     options: dict[str, object] = {"pool_pre_ping": True}
-    if database_url.startswith("sqlite"):
+    if normalized_url.startswith("sqlite"):
         options["connect_args"] = {"check_same_thread": False}
-    _engine = create_engine(database_url, **options)
+    else:
+        # Recycle connections after 5 minutes to gracefully handle Neon serverless idle socket termination
+        options["pool_recycle"] = 300
+    _engine = create_engine(normalized_url, **options)
     _session_factory = sessionmaker(bind=_engine, autocommit=False, autoflush=False)
 
 

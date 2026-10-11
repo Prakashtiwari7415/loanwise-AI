@@ -4,7 +4,7 @@ from logging.config import fileConfig
 
 from alembic import context
 
-from app.core.config import get_settings
+from app.core.config import get_settings, normalize_database_url
 from app.db.base import Base
 from app.db import models  # noqa: F401 - register mapped tables on Base.metadata
 
@@ -12,9 +12,10 @@ config = context.config
 if config.config_file_name is not None:
     fileConfig(config.config_file_name)
 
-database_url = get_settings().database_url
-if database_url is None:
+raw_url = get_settings().database_url
+if raw_url is None:
     raise RuntimeError("DATABASE_URL must be set before running Alembic migrations")
+database_url = normalize_database_url(raw_url) or raw_url
 config.set_main_option("sqlalchemy.url", database_url)
 target_metadata = Base.metadata
 

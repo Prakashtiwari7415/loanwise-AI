@@ -4,8 +4,13 @@ __pycache__/
 .venv/
 .pytest_cache/
 
-# Environment
+# Environment & Secrets
 .env
+.env.*
+!.env.example
+backend/.env*
+frontend/.env*
+*.env
 
 # Node
 node_modules/
