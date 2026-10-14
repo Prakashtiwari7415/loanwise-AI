@@ -2,11 +2,23 @@
 
 Live Demo Link:https://loanwise-ai-1.onrender.com/
 
+<!-- Project screen recording embedded for quick demo -->
+## Project screen recording
+
+You can watch a quick screen recording of the project below (served from this repository):
+
+<video controls width="720">
+  <source src="https://raw.githubusercontent.com/Prakashtiwari7415/loanwise-AI/main/screen-capture.webm" type="video/webm">
+  Your browser does not support the video tag. You can download the recording here: [screen-capture.webm](https://raw.githubusercontent.com/Prakashtiwari7415/loanwise-AI/main/screen-capture.webm).
+</video>
+
+If your browser doesn't show the embedded player, use the direct link above to download or stream the file.
+
 LoanWise AI is an intelligent loan decision-support platform designed to help borrowers in India understand, compare, and evaluate loan offers before borrowing.
 
-It combines a deterministic financial mathematics engine, Google Gemini-powered contextual AI assistance with allowlisted tool calling, grounded regulatory retrieval-augmented generation (RAG) with traceable citations, Key Fact Statement (KFS) document intelligence, and a responsive mobile-ready interface.
+It combines a deterministic financial mathematics engine, Google Gemini-powered contextual AI assistance with allowlisted tool calling, grounded regulatory retrieval-augmented generation (RAG) with[...]
 
-> **Financial Disclaimer**: LoanWise provides educational and decision-support analysis. It does not guarantee loan approval, claim certified financial advisory status, or replace formal lender terms.
+> **Financial Disclaimer**: LoanWise provides educational and decision-support analysis. It does not guarantee loan approval, claim certified financial advisory status, or replace formal lender ter[...]
 
 ---
 
@@ -31,10 +43,10 @@ flowchart TD
 
 ## Key Capabilities
 
-1. **Deterministic Financial Engine**: Precision reducing-balance calculations for EMI, total interest, borrowing costs, amortization schedules, affordability classification, and rate/prepayment scenario simulations.
-2. **Contextual AI Assistant (Gemini)**: Uses Google Gemini 2.5 Flash with allowlisted deterministic tool calling (`calculate_emi`, `calculate_affordability`, `compare_loans`, `simulate_prepayment`, `simulate_rate_change`). All numbers in assistant responses are strictly grounded in deterministic calculation outputs.
-3. **Grounded Regulatory RAG**: In-memory SQLite FTS5 search index over an authoritative curated corpus of Reserve Bank of India (RBI) circulars, KFS & APR mandates, and financial guides. Returns traceable citations, publisher attribution, and staleness warnings for outdated lender terms.
-4. **KFS Document Intelligence**: In-memory PDF stream extraction for lender terms, loan amounts, interest rates, tenures, and fees with confidence scoring, side-by-side plan comparisons, and one-click assistant prompt dispatch.
+1. **Deterministic Financial Engine**: Precision reducing-balance calculations for EMI, total interest, borrowing costs, amortization schedules, affordability classification, and rate/prepayment s[...]
+2. **Contextual AI Assistant (Gemini)**: Uses Google Gemini 2.5 Flash with allowlisted deterministic tool calling (`calculate_emi`, `calculate_affordability`, `compare_loans`, `simulate_prepayment[...]
+3. **Grounded Regulatory RAG**: In-memory SQLite FTS5 search index over an authoritative curated corpus of Reserve Bank of India (RBI) circulars, KFS & APR mandates, and financial guides. Returns [...]
+4. **KFS Document Intelligence**: In-memory PDF stream extraction for lender terms, loan amounts, interest rates, tenures, and fees with confidence scoring, side-by-side plan comparisons, and one-[...]
 5. **Universal Loan Platform**: Built for car loans, personal loans, home loans, education loans, and two-wheeler loans with educational definitions and beginner-friendly guides.
 6. **Mobile-First Responsive UX**: Optimized for smartphones (320px–430px), tablets, and desktop screens with sticky navigation, touch targets, and collapsible cards.
 
@@ -101,7 +113,7 @@ LoanWise AI is designed for free-tier cloud deployment using:
 | `LLM_TIMEOUT_SECONDS`| `30.0` | Optional |
 
 > [!IMPORTANT]
-> **Production CORS Rule**: When `ENVIRONMENT=production`, wildcard origin (`*`) is strictly rejected by the application on startup. You must provide the exact frontend origin(s) in `CORS_ORIGINS` without trailing slashes.
+> **Production CORS Rule**: When `ENVIRONMENT=production`, wildcard origin (`*`) is strictly rejected by the application on startup. You must provide the exact frontend origin(s) in `CORS_ORIGINS[...]
 
 6. Click **Create Web Service**. Note your backend URL (e.g., `https://loanwise-backend.onrender.com`).
 
@@ -175,7 +187,7 @@ DATABASE_URL="postgresql://user:pass@ep-xyz.neon.tech/neondb?sslmode=require" .v
 
 ### 1. Database Driver & Connection Pooling
 - **Driver**: Configured with `psycopg` (v3). Connection strings using legacy `postgres://` or `postgresql://` are automatically normalized to `postgresql+psycopg://`.
-- **Neon Autosuspension Resilience**: Neon compute sleeps after idling. SQLAlchemy engine uses `pool_pre_ping=True` and `pool_recycle=300` (recycles connections every 5 minutes) to eliminate stale socket drop errors (`SSL connection has been closed unexpectedly`).
+- **Neon Autosuspension Resilience**: Neon compute sleeps after idling. SQLAlchemy engine uses `pool_pre_ping=True` and `pool_recycle=300` (recycles connections every 5 minutes) to eliminate stal[...]
 - **SSL Enforcement**: Remote database hosts automatically enforce `sslmode=require`.
 
 ### 2. Strict CORS Configuration
@@ -194,7 +206,7 @@ DATABASE_URL="postgresql://user:pass@ep-xyz.neon.tech/neondb?sslmode=require" .v
 - All RAG responses cite verified regulatory documents and warn users when lender fees may be subject to revision.
 
 ### 5. Recommended Enhancements for High-Volume Public Launch
-- **Rate Limiting**: Add distributed rate limiting (e.g., `slowapi` with Redis) to protect the `/api/v1/assistant/chat` and `/api/v1/documents/analyze` endpoints against denial-of-service or quota exhaustion.
+- **Rate Limiting**: Add distributed rate limiting (e.g., `slowapi` with Redis) to protect the `/api/v1/assistant/chat` and `/api/v1/documents/analyze` endpoints against denial-of-service or quot[...]
 - **User Authentication**: Add session tokens or OAuth 2.0 (e.g., Supabase Auth or Auth0) if persisting user-specific loan applications and documents across devices.
 - **Observability**: Integrate centralized logging and performance monitoring (e.g., Sentry for error reporting, Datadog or OpenTelemetry for request tracing).
 - **WAF & Cloudflare**: Put Cloudflare in front of the static site and web service for DDoS mitigation and global edge caching.
@@ -260,7 +272,7 @@ Add these in **Settings → Secrets and variables → Actions**:
 
 > [!IMPORTANT]
 > Render's built-in auto-deploy must be turned **off** for both services so GitHub Actions owns the production trigger and tests are never bypassed.
->
+> 
 > **Render dashboard → service → Settings → Auto-Deploy → No → Save Changes**
 
 See [`docs/cicd.md`](docs/cicd.md) for the complete guide: secrets setup, deploy hook configuration, migration safety, troubleshooting, and known limitations.
