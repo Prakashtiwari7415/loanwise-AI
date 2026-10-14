@@ -1,5 +1,6 @@
 # LoanWise AI
 
+Live Demo Link:https://loanwise-ai-1.onrender.com/
 LoanWise AI is an intelligent loan decision-support platform designed to help borrowers in India understand, compare, and evaluate loan offers before borrowing.
 
 It combines a deterministic financial mathematics engine, Google Gemini-powered contextual AI assistance with allowlisted tool calling, grounded regulatory retrieval-augmented generation (RAG) with traceable citations, Key Fact Statement (KFS) document intelligence, and a responsive mobile-ready interface.
