@@ -232,6 +232,39 @@ Open UI: `http://localhost:5173`
 
 ---
 
+---
+
+## CI / CD Pipeline
+
+LoanWise AI uses a GitHub Actions workflow (`.github/workflows/ci.yml`) for automated quality checks and deployment.
+
+### How it works
+
+| Event | Quality checks | Production deploy |
+| :--- | :--- | :--- |
+| Pull request → `main` | ✅ Backend pytest + Frontend vitest + build | ❌ Never |
+| Push to `main` | ✅ Same checks | ✅ Only after all checks pass |
+
+### Required GitHub secrets
+
+Add these in **Settings → Secrets and variables → Actions**:
+
+| Secret | Description |
+| :--- | :--- |
+| `RENDER_BACKEND_DEPLOY_HOOK` | Render deploy hook URL for the backend Web Service |
+| `RENDER_FRONTEND_DEPLOY_HOOK` | Render deploy hook URL for the frontend Static Site |
+
+### Disable Render auto-deploy
+
+> [!IMPORTANT]
+> Render's built-in auto-deploy must be turned **off** for both services so GitHub Actions owns the production trigger and tests are never bypassed.
+>
+> **Render dashboard → service → Settings → Auto-Deploy → No → Save Changes**
+
+See [`docs/cicd.md`](docs/cicd.md) for the complete guide: secrets setup, deploy hook configuration, migration safety, troubleshooting, and known limitations.
+
+---
+
 ## Running Automated Tests
 
 All tests run offline without live database or cloud service dependencies:

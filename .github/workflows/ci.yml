@@ -1,34 +1,238 @@
-name: CI
+# ============================================================================
+# LoanWise AI — CI/CD Pipeline
+# ============================================================================
+# Triggers:
+#   - Every pull request targeting main   → runs quality checks only
+#   - Every push to main                  → runs quality checks, then deploys
+#
+# Jobs:
+#   backend  — pytest suite (81 tests, SQLite in-memory, no real API key)
+#   frontend — vitest suite (38 tests) + TypeScript build
+#   deploy   — Render deploy hooks (main pushes only, after both jobs pass)
+#
+# Required GitHub repository secrets (Settings → Secrets and variables → Actions):
+#   RENDER_BACKEND_DEPLOY_HOOK   Render deploy hook URL for the backend service
+#   RENDER_FRONTEND_DEPLOY_HOOK  Render deploy hook URL for the frontend static site
+# ============================================================================
+
+name: CI / CD
 
 on:
-  push:
   pull_request:
+    branches:
+      - main
+  push:
+    branches:
+      - main
 
+# Least-privilege: workflows only need to read repository content.
+# Deployment steps use secrets, not the default GITHUB_TOKEN.
+permissions:
+  contents: read
+
+# Cancel in-flight runs for the same ref when a newer commit arrives.
+# This prevents duplicate concurrent deployments on rapid pushes to main.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+# ---------------------------------------------------------------------------
+# BACKEND CI JOB
+# ---------------------------------------------------------------------------
 jobs:
   backend:
+    name: Backend — pytest (Python 3.12)
     runs-on: ubuntu-latest
+    timeout-minutes: 15
+
     defaults:
       run:
         working-directory: backend
+
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
         with:
-          python-version: '3.12'
-      - run: python -m pip install --upgrade pip
-      - run: pip install -r requirements.txt
-      - run: pytest -q
+          python-version: "3.12"
+
+      # Cache pip dependencies keyed on requirements.txt content.
+      # A requirements.txt change busts the cache automatically.
+      - name: Cache pip packages
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pip
+          key: pip-${{ runner.os }}-py3.12-${{ hashFiles('backend/requirements.txt') }}
+          restore-keys: |
+            pip-${{ runner.os }}-py3.12-
+
+      - name: Install backend dependencies
+        run: pip install -r requirements.txt
+
+      # Tests use SQLite in-memory via pytest fixture (test_persistence.py).
+      # No real DATABASE_URL or API key is needed.
+      # PYTHONPATH is required so that 'from app.xxx import ...' resolves
+      # correctly from inside the backend/ working directory.
+      - name: Run pytest suite
+        env:
+          PYTHONPATH: .
+          ENVIRONMENT: test
+          # Explicitly absent: DATABASE_URL, GEMINI_API_KEY, LLM_API_KEY.
+          # Tests that require these use mocks / monkeypatching.
+        run: pytest backend/tests -v --tb=short
+        working-directory: ${{ github.workspace }}
+
+  # ---------------------------------------------------------------------------
+  # FRONTEND CI JOB
+  # ---------------------------------------------------------------------------
   frontend:
+    name: Frontend — vitest + TypeScript build (Node 22)
     runs-on: ubuntu-latest
+    timeout-minutes: 15
+
     defaults:
       run:
         working-directory: frontend
+
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js 22
+        uses: actions/setup-node@v4
         with:
-          node-version: 22
+          node-version: "22"
+          # Cache keyed on the package-lock.json so that lockfile changes
+          # invalidate the cache and force a fresh npm ci.
           cache: npm
           cache-dependency-path: frontend/package-lock.json
-      - run: npm ci
-      - run: npm run build
+
+      # npm ci installs reproducibly from package-lock.json.
+      # It will fail if the lockfile is missing or out-of-sync.
+      - name: Install frontend dependencies (reproducible)
+        run: npm ci
+
+      - name: Run frontend test suite
+        run: npm test -- --run
+
+      # A successful TypeScript + Vite production build is required before
+      # any deployment.  VITE_API_BASE_URL is set to a placeholder because
+      # the real backend URL is injected at build time by Render, not here.
+      - name: Build production frontend
+        env:
+          VITE_API_BASE_URL: https://loanwise-ai-pqdj.onrender.com
+        run: npm run build
+
+  # ---------------------------------------------------------------------------
+  # DEPLOYMENT JOB
+  # Runs only on pushes to main (never on pull requests).
+  # Requires both backend and frontend jobs to succeed.
+  # ---------------------------------------------------------------------------
+  deploy:
+    name: Deploy to Render
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    needs: [backend, frontend]
+
+    # Guard: only deploy on direct pushes to main, never on PRs.
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+
+    # Separate environment for deployment secrets and audit trail.
+    environment: production
+
+    steps:
+      - name: Checkout repository (for change detection)
+        uses: actions/checkout@v4
+        with:
+          # Fetch the parent commit so we can diff changed files.
+          fetch-depth: 2
+
+      # ------------------------------------------------------------------
+      # Change detection
+      # Determines which services are affected by this push so that we
+      # avoid triggering an unnecessary Render rebuild for unchanged code.
+      #
+      # Trade-off documented:
+      #   If the change detection logic is ever fragile (e.g., a rename
+      #   or monorepo restructure), prefer deploying both services.
+      #   See docs/cicd.md for guidance on overriding selective deployment.
+      # ------------------------------------------------------------------
+      - name: Detect changed services
+        id: changes
+        run: |
+          # Files changed in this push vs. its parent commit.
+          CHANGED=$(git diff --name-only HEAD~1 HEAD)
+          echo "Changed files:"
+          echo "$CHANGED"
+
+          # Backend is affected when:
+          #   - Any file under backend/ changes, OR
+          #   - Shared config (.env.example, docker-compose.yml, alembic.ini) changes, OR
+          #   - This workflow file itself changes (pipeline change = redeploy both)
+          if echo "$CHANGED" | grep -qE '^(backend/|docker/backend|docker-compose\.yml|\.env\.example|\.github/)'; then
+            echo "deploy_backend=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "deploy_backend=false" >> "$GITHUB_OUTPUT"
+          fi
+
+          # Frontend is affected when:
+          #   - Any file under frontend/ changes, OR
+          #   - Shared config or this workflow file changes
+          if echo "$CHANGED" | grep -qE '^(frontend/|docker/frontend|docker/nginx|docker-compose\.yml|\.env\.example|\.github/)'; then
+            echo "deploy_frontend=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "deploy_frontend=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      # ------------------------------------------------------------------
+      # Backend deployment
+      # Calls the Render deploy hook URL stored in the repository secret.
+      # The URL is never printed to the log (curl -s, no echo of the var).
+      # Fails loudly if the secret is not configured.
+      # ------------------------------------------------------------------
+      - name: Trigger backend deployment
+        if: steps.changes.outputs.deploy_backend == 'true'
+        env:
+          HOOK_URL: ${{ secrets.RENDER_BACKEND_DEPLOY_HOOK }}
+        run: |
+          if [ -z "$HOOK_URL" ]; then
+            echo "::error::RENDER_BACKEND_DEPLOY_HOOK secret is not set. Add it in Settings → Secrets and variables → Actions."
+            exit 1
+          fi
+          echo "Triggering backend deployment…"
+          HTTP_STATUS=$(curl -s -o /dev/null -w "%{http_code}" -X POST "$HOOK_URL")
+          echo "Render API response status: $HTTP_STATUS"
+          if [ "$HTTP_STATUS" -lt 200 ] || [ "$HTTP_STATUS" -ge 300 ]; then
+            echo "::error::Backend deploy hook returned HTTP $HTTP_STATUS. Check the Render dashboard for details."
+            exit 1
+          fi
+          echo "Backend deployment triggered successfully."
+
+      # ------------------------------------------------------------------
+      # Frontend deployment
+      # ------------------------------------------------------------------
+      - name: Trigger frontend deployment
+        if: steps.changes.outputs.deploy_frontend == 'true'
+        env:
+          HOOK_URL: ${{ secrets.RENDER_FRONTEND_DEPLOY_HOOK }}
+        run: |
+          if [ -z "$HOOK_URL" ]; then
+            echo "::error::RENDER_FRONTEND_DEPLOY_HOOK secret is not set. Add it in Settings → Secrets and variables → Actions."
+            exit 1
+          fi
+          echo "Triggering frontend deployment…"
+          HTTP_STATUS=$(curl -s -o /dev/null -w "%{http_code}" -X POST "$HOOK_URL")
+          echo "Render API response status: $HTTP_STATUS"
+          if [ "$HTTP_STATUS" -lt 200 ] || [ "$HTTP_STATUS" -ge 300 ]; then
+            echo "::error::Frontend deploy hook returned HTTP $HTTP_STATUS. Check the Render dashboard for details."
+            exit 1
+          fi
+          echo "Frontend deployment triggered successfully."
+
+      - name: Report deployment skipped (no relevant changes)
+        if: steps.changes.outputs.deploy_backend == 'false' && steps.changes.outputs.deploy_frontend == 'false'
+        run: |
+          echo "No backend or frontend files changed. Deployment skipped."
+          echo "If you believe a deployment is needed, add a whitespace change to backend/ or frontend/."
