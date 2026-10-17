@@ -1,9 +1,13 @@
 <img width="1366" height="768" alt="Screenshot from 2026-10-17 06-48-28" src="https://github.com/user-attachments/assets/bdbabf9a-f8d1-49c9-9bab-335cdd405eb0" />
+
+<img width="1366" height="768" alt="Screenshot from 2026-10-17 06-48-04" src="https://github.com/user-attachments/assets/5acb3318-6a0b-4998-b618-b99c3393cddd" />
+
 # LoanWise AI
 
 Live Demo Link:https://loanwise-ai-1.onrender.com/
 
-<!-- Project screen recording embedded for quick demo -->
+<!-- Project screen recording embedded for quick demo --><img width="1366" height="768" alt="Screenshot from 2026-10-17 06-48-16" src="https://github.com/user-attachments/assets/ff936a85-bb95-4bde-8f88-f7edfa3eb1d2" />
+
 ## Project screen recording
 
 You can watch a quick screen recording of the project below (served from this repository):
