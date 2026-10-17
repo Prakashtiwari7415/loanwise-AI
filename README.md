@@ -1,3 +1,4 @@
+<img width="1366" height="768" alt="Screenshot from 2026-10-17 06-48-28" src="https://github.com/user-attachments/assets/bdbabf9a-f8d1-49c9-9bab-335cdd405eb0" />
 # LoanWise AI
 
 Live Demo Link:https://loanwise-ai-1.onrender.com/
