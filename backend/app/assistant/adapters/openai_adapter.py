@@ -24,6 +24,14 @@ from app.assistant.provider import (
 logger = logging.getLogger(__name__)
 
 
+_CLIENT_POOL: dict[tuple[str, str | None, float], AsyncOpenAI] = {}
+
+
+def clear_client_pool() -> None:
+    """Clear cached AsyncOpenAI client instances (used for testing)."""
+    _CLIENT_POOL.clear()
+
+
 class OpenAIAdapter(LLMProvider):
     """Adapter for OpenAI-compatible models (including Google Gemini) implementing LLMProvider."""
 
@@ -54,11 +62,14 @@ class OpenAIAdapter(LLMProvider):
             key_hint = "GEMINI_API_KEY or LLM_API_KEY" if self.provider_name == "gemini" else "OPENAI_API_KEY or LLM_API_KEY"
             raise ProviderAuthError(f"{self.provider_label} API key is missing or not configured. Set {key_hint}.")
         if self._client is None:
-            self._client = AsyncOpenAI(
-                api_key=self.api_key,
-                timeout=self.timeout,
-                base_url=self.base_url,
-            )
+            cache_key = (self.api_key, self.base_url, self.timeout)
+            if cache_key not in _CLIENT_POOL:
+                _CLIENT_POOL[cache_key] = AsyncOpenAI(
+                    api_key=self.api_key,
+                    timeout=self.timeout,
+                    base_url=self.base_url,
+                )
+            self._client = _CLIENT_POOL[cache_key]
         return self._client
 
 

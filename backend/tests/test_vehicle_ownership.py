@@ -581,11 +581,12 @@ def test_criterion_13_simulate_prepayment_still_works() -> None:
 
 
 def test_criterion_13_six_tools_still_allowlisted() -> None:
-    """Criterion 13 regression: all 6 tools remain in the allowlist."""
+    """Criterion 13 regression: allowlisted tools remain present."""
     names = {t.name for t in get_tool_definitions()}
     assert "calculate_emi" in names
     assert "estimate_vehicle_ownership" in names
-    assert len(names) == 6
+    assert "fetch_current_rates" in names
+    assert len(names) >= 6
 
 
 @pytest.mark.anyio

@@ -228,3 +228,35 @@ class VehicleOwnershipCostResult(BaseModel):
     uncertainty_note: str
     exclusions: list[str]
     follow_up_suggestions: list[str]
+
+
+# --- fetch_current_rates ---
+class FetchCurrentRatesArgs(ToolArgsModel):
+    """Arguments for retrieving verified benchmark lender interest rates."""
+    loan_type: str = Field(
+        default="personal",
+        description="Category of loan: 'personal', 'car', or 'home'.",
+    )
+    lender: str | None = Field(
+        default=None,
+        description="Optional lender name to filter, e.g. 'SBI', 'HDFC', 'ICICI'.",
+    )
+
+
+class LenderRateItemResult(BaseModel):
+    lender: str
+    rate_range: str
+    starting_rate: str
+    starting_rate_conditions: str
+    processing_fee_info: str
+    source_url: str
+    verified_date: str
+    is_live: bool
+
+
+class FetchCurrentRatesResult(BaseModel):
+    loan_type: str
+    retrieved_at: str
+    is_live: bool
+    rates: list[LenderRateItemResult]
+    disclaimer: str

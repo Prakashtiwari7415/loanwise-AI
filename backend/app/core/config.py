@@ -86,6 +86,12 @@ class Settings:
     llm_max_input_length: int = 4000
     gemini_base_url: str = "https://generativelanguage.googleapis.com/v1beta/openai/"
 
+    rate_search_enabled: bool = False
+    rate_search_provider: str = "curated"
+    rate_search_api_key: str | None = None
+    rate_search_timeout_seconds: float = 3.0
+    rate_cache_ttl_seconds: int = 3600
+
     @property
     def is_production(self) -> bool:
         return self.environment.lower() == "production"
@@ -150,6 +156,21 @@ def get_settings() -> Settings:
     except ValueError:
         max_input_length = 4000
 
+    raw_rate_search = os.getenv("RATE_SEARCH_ENABLED", "").strip().lower()
+    rate_search_api_key = os.getenv("RATE_SEARCH_API_KEY", "").strip() or None
+    rate_search_provider = os.getenv("RATE_SEARCH_PROVIDER", "curated").strip().lower()
+    rate_search_enabled = raw_rate_search in ("1", "true", "yes") or bool(rate_search_api_key)
+
+    try:
+        rate_search_timeout = float(os.getenv("RATE_SEARCH_TIMEOUT_SECONDS", "3.0"))
+    except ValueError:
+        rate_search_timeout = 3.0
+
+    try:
+        rate_cache_ttl = int(os.getenv("RATE_CACHE_TTL_SECONDS", "3600"))
+    except ValueError:
+        rate_cache_ttl = 3600
+
     return Settings(
         environment=raw_env,
         database_url=database_url or None,
@@ -162,5 +183,10 @@ def get_settings() -> Settings:
         llm_max_turns=max_turns,
         llm_max_input_length=max_input_length,
         gemini_base_url=gemini_base_url,
+        rate_search_enabled=rate_search_enabled,
+        rate_search_provider=rate_search_provider,
+        rate_search_api_key=rate_search_api_key,
+        rate_search_timeout_seconds=rate_search_timeout,
+        rate_cache_ttl_seconds=rate_cache_ttl,
     )
 

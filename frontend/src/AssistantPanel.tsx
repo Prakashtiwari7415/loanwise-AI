@@ -3,12 +3,14 @@ import { sendAssistantMessage, type AssistantChatResponse, type BreakdownItem, t
 
 const SUGGESTED_QUESTIONS = [
   "Explain my current EMI.",
+  "What are the latest personal-loan interest rates?",
   "What are my total monthly car expenses including EMI, fuel, and insurance?",
   "What does RBI mandate about KFS cooling-off period?",
   "Are foreclosure charges allowed on floating car loans?",
   "What is the difference between flat and reducing rate?",
   "Can I save interest through prepayment?",
   "What happens if interest rates rise by 1%?",
+  "हिंदी में समझाइए (Explain in Hindi)",
 ];
 
 const TOOL_NAMES_MAP: Record<string, string> = {
@@ -18,6 +20,7 @@ const TOOL_NAMES_MAP: Record<string, string> = {
   simulate_prepayment: "Prepayment Schedule Simulation",
   simulate_rate_change: "Rate Sensitivity Engine",
   estimate_vehicle_ownership: "Vehicle Ownership Cost Estimator",
+  fetch_current_rates: "Lender Benchmark Rate Registry",
 };
 
 type ChatMessage = {
@@ -206,22 +209,39 @@ export function AssistantPanel({ loanContext, externalAction, onClearExternalAct
                   <strong>Unable to complete calculation</strong>
                 </div>
                 <p className="error-body">{msg.text}</p>
-                {msg.canRetry && (
+                <div className="error-actions">
+                  {msg.canRetry && (
+                    <button
+                      type="button"
+                      className="retry-button"
+                      onClick={() => handleRetry(msg.failedPrompt)}
+                      disabled={loading}
+                    >
+                      ↻ Retry Question
+                    </button>
+                  )}
                   <button
                     type="button"
-                    className="retry-button"
-                    onClick={() => handleRetry(msg.failedPrompt)}
-                    disabled={loading}
+                    className="calculator-fallback-button"
+                    onClick={() => {
+                      const el = document.getElementById("decision-view") || document.querySelector("form");
+                      el?.scrollIntoView?.({ behavior: "smooth" });
+                    }}
                   >
-                    ↻ Retry Question
+                    📊 Use Deterministic Calculator
                   </button>
-                )}
+                </div>
               </div>
             ) : msg.response ? (
               <div className="bot-bubble structured-response">
                 {/* Headline */}
                 <div className="response-headline-box">
                   <h4 className="response-headline">{msg.response.headline}</h4>
+                  {msg.response.timings && typeof msg.response.timings.total_server_time_ms === "number" && (
+                    <span className="response-timing-badge" title="End-to-end response time">
+                      ⚡ {Math.round(msg.response.timings.total_server_time_ms)}ms
+                    </span>
+                  )}
                   {msg.response.needs_more_information && (
                     <span className="needs-info-badge">Requires More Information</span>
                   )}
@@ -370,6 +390,9 @@ export function AssistantPanel({ loanContext, externalAction, onClearExternalAct
                                 <span className="publisher-tag">{src.publisher}</span>
                                 {src.verified_date && (
                                   <span className="date-tag">Verified: {src.verified_date}</span>
+                                )}
+                                {src.published_date && src.published_date !== src.verified_date && (
+                                  <span className="date-tag">Published: {src.published_date}</span>
                                 )}
                               </div>
                             </div>

@@ -5,12 +5,15 @@ from __future__ import annotations
 import json
 import logging
 import re
+import time
 from typing import Any
 
 from pydantic import ValidationError
 
+from app.assistant.intent import LanguagePreference, QueryIntent, analyze_intent
 from app.assistant.prompts import (
     SYSTEM_PROMPT,
+    format_language_prompt,
     format_loan_context_prompt,
     format_rag_evidence_prompt,
 )
@@ -23,6 +26,7 @@ from app.assistant.provider import (
 from app.assistant.schemas import AssistantChatRequest, AssistantChatResponse, BreakdownItem
 from app.assistant.tools.registry import execute_tool, get_tool_definitions
 from app.rag import KnowledgeRetriever, RetrievalResult, SourceCitation, get_default_retriever, to_citation
+from app.rag.rates import RateRetrievalService, get_default_rate_service
 
 logger = logging.getLogger(__name__)
 
@@ -37,6 +41,7 @@ class AssistantService:
         self,
         provider: LLMProvider,
         retriever: KnowledgeRetriever | None | object = _DEFAULT_RETRIEVER,
+        rate_service: RateRetrievalService | None = None,
         max_turns: int = 5,
         max_tool_calls: int = 5,
     ) -> None:
@@ -45,20 +50,73 @@ class AssistantService:
             self.retriever = get_default_retriever()
         else:
             self.retriever = retriever  # type: ignore[assignment]
+        self.rate_service = rate_service or get_default_rate_service()
         self.max_turns = max_turns
         self.max_tool_calls = max_tool_calls
 
+    def _compute_timings(
+        self,
+        t_start: float,
+        t_intent: float,
+        t_ret_start: float,
+        t_ret_end: float,
+        t_model_start: float,
+        t_end: float,
+        tool_time: float,
+    ) -> dict[str, float]:
+        """Compute latency metrics across pipeline stages."""
+        val_ms = round((t_intent - t_start) * 1000, 2)
+        ret_ms = round((t_ret_end - t_ret_start) * 1000, 2)
+        tool_ms = round(tool_time * 1000, 2)
+        model_ms = round(max((t_end - t_model_start - tool_time), 0.0) * 1000, 2)
+        total_ms = round((t_end - t_start) * 1000, 2)
+
+        timings = {
+            "validation_ms": val_ms,
+            "retrieval_ms": ret_ms,
+            "tool_execution_ms": tool_ms,
+            "model_call_ms": model_ms,
+            "total_server_time_ms": total_ms,
+        }
+        logger.info(
+            "assistant_timings: total=%.2fms validation=%.2fms retrieval=%.2fms model=%.2fms tool=%.2fms",
+            total_ms, val_ms, ret_ms, model_ms, tool_ms,
+        )
+        return timings
+
     async def chat(self, request: AssistantChatRequest) -> AssistantChatResponse:
         """Run the bounded agent orchestration loop and return a validated structured response."""
-        # 1. Retrieve grounded knowledge evidence
-        retrieval_results: list[RetrievalResult] = []
-        if self.retriever:
-            retrieval_results = self.retriever.retrieve(request.message, top_k=3)
+        t_start = time.perf_counter()
 
-        # 2. Prepare initial conversation history
+        # 1. Intent and language classification
+        intent = analyze_intent(request.message)
+        t_intent = time.perf_counter()
+
+        # 2. Retrieve grounded knowledge evidence
+        t_retrieval_start = time.perf_counter()
+        retrieval_results: list[Any] = []
+        if self.retriever:
+            retrieval_results = list(self.retriever.retrieve(request.message, top_k=3))
+
+        # If user asks about current rates, enrich with verified benchmark lender quotes
+        if intent.is_rate_query:
+            try:
+                rate_result = await self.rate_service.get_rates(intent.loan_type or "personal")
+                rate_citations = rate_result.to_citations()
+                retrieval_results = rate_citations[:3] + retrieval_results
+            except Exception as exc:
+                logger.warning("Failed to supplement rate evidence: %s", exc)
+        t_retrieval_end = time.perf_counter()
+
+        # 3. Prepare initial conversation history
         messages: list[ChatMessage] = [
             ChatMessage(role="system", content=SYSTEM_PROMPT)
         ]
+
+        # Inject language instruction if Hindi or Hinglish requested
+        lang_prompt = format_language_prompt(intent.language.value)
+        if lang_prompt:
+            messages.append(ChatMessage(role="system", content=lang_prompt))
 
         # Inject grounded RAG evidence
         evidence_prompt = format_rag_evidence_prompt(retrieval_results)
@@ -73,10 +131,11 @@ class AssistantService:
         tool_defs: list[ToolDefinition] | None = get_tool_definitions()
         executed_tools: list[str] = []
         total_tool_calls = 0
-        # Track vehicle ownership tool results to populate breakdown deterministically
         vehicle_tool_results: list[dict[str, Any]] = []
+        tool_time_total = 0.0
 
-        # 3. Agent orchestration loop
+        # 4. Agent orchestration loop
+        t_model_start = time.perf_counter()
         for turn_idx in range(self.max_turns):
             response = await self.provider.generate_response(messages, tools=tool_defs)
 
@@ -84,8 +143,12 @@ class AssistantService:
             if not response.tool_calls:
                 # If content already has a JSON structure, parse directly
                 if response.content and "{" in response.content:
+                    t_end = time.perf_counter()
+                    timings = self._compute_timings(
+                        t_start, t_intent, t_retrieval_start, t_retrieval_end, t_model_start, t_end, tool_time_total
+                    )
                     return self._parse_structured_response(
-                        response.content, executed_tools, retrieval_results, vehicle_tool_results
+                        response.content, executed_tools, retrieval_results, vehicle_tool_results, timings
                     )
 
                 # If tools were active, model replied in prose, and turns remain,
@@ -110,8 +173,12 @@ class AssistantService:
                     tool_defs = None
                     continue
 
+                t_end = time.perf_counter()
+                timings = self._compute_timings(
+                    t_start, t_intent, t_retrieval_start, t_retrieval_end, t_model_start, t_end, tool_time_total
+                )
                 return self._parse_structured_response(
-                    response.content, executed_tools, retrieval_results, vehicle_tool_results
+                    response.content, executed_tools, retrieval_results, vehicle_tool_results, timings
                 )
 
             # Record assistant turn with requested tool calls
@@ -124,6 +191,7 @@ class AssistantService:
             )
 
             # Execute requested tool calls with strict limit bounds
+            t_tool_turn_start = time.perf_counter()
             for tc in response.tool_calls:
                 if total_tool_calls >= self.max_tool_calls:
                     logger.warning("Tool call limit of %d reached; skipping tool %s", self.max_tool_calls, tc.name)
@@ -153,6 +221,7 @@ class AssistantService:
                         content=json.dumps(result),
                     )
                 )
+            tool_time_total += (time.perf_counter() - t_tool_turn_start)
 
             # Prompt model for final structured JSON synthesis after tool results
             messages.append(
@@ -169,8 +238,12 @@ class AssistantService:
 
         # If turn limit reached without final text, request one final turn without tools
         final_response = await self.provider.generate_response(messages, tools=None)
+        t_end = time.perf_counter()
+        timings = self._compute_timings(
+            t_start, t_intent, t_retrieval_start, t_retrieval_end, t_model_start, t_end, tool_time_total
+        )
         return self._parse_structured_response(
-            final_response.content, executed_tools, retrieval_results, vehicle_tool_results
+            final_response.content, executed_tools, retrieval_results, vehicle_tool_results, timings
         )
 
     def _extract_json_string(self, text: str) -> str:
@@ -191,8 +264,9 @@ class AssistantService:
         self,
         content: str | None,
         executed_tools: list[str],
-        retrieval_results: list[RetrievalResult] | None = None,
+        retrieval_results: list[Any] | None = None,
         vehicle_tool_results: list[dict[str, Any]] | None = None,
+        timings: dict[str, float] | None = None,
     ) -> AssistantChatResponse:
         """Parse and strictly validate the structured JSON response with grounded tool calls and citations."""
         if not content or not content.strip():
@@ -209,14 +283,18 @@ class AssistantService:
 
             # Ground sources and citations against actually retrieved evidence
             retrieved = retrieval_results or []
-            verified_by_title: dict[str, SourceCitation] = {
-                r.chunk.title.strip().lower(): to_citation(r) for r in retrieved
-            }
-            verified_by_url: dict[str, SourceCitation] = {
-                r.chunk.url.strip().lower(): to_citation(r)
-                for r in retrieved
-                if r.chunk.url
-            }
+            verified_by_title: dict[str, SourceCitation] = {}
+            verified_by_url: dict[str, SourceCitation] = {}
+
+            for r in retrieved:
+                if isinstance(r, SourceCitation):
+                    cit = r
+                else:
+                    cit = to_citation(r)
+                if cit.title:
+                    verified_by_title[cit.title.strip().lower()] = cit
+                if cit.url:
+                    verified_by_url[cit.url.strip().lower()] = cit
 
             model_sources = parsed.get("sources")
             grounded_sources: list[dict[str, Any]] = []
@@ -240,12 +318,13 @@ class AssistantService:
             if not grounded_sources and retrieved:
                 seen_titles: set[str] = set()
                 for r in retrieved:
-                    cit = to_citation(r)
+                    cit = r if isinstance(r, SourceCitation) else to_citation(r)
                     if cit.title not in seen_titles:
                         seen_titles.add(cit.title)
                         grounded_sources.append(cit.model_dump())
 
             parsed["sources"] = grounded_sources
+            parsed["timings"] = timings
 
             # Populate breakdown deterministically from vehicle ownership tool results
             vehicle_results = vehicle_tool_results or []

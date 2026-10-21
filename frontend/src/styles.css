@@ -147,8 +147,12 @@ footer p{margin:0;max-width:680px}
 .error-bubble{background:#fff6f6;border-color:#f1c5c5;color:#882222}
 .error-header{display:flex;align-items:center;gap:6px;font-weight:700;margin-bottom:6px}
 .error-body{margin:0;font-size:13px}
-.retry-button{background:#882222;color:#fff;border:0;border-radius:8px;padding:7px 14px;font:700 11px Manrope;cursor:pointer;margin-top:12px;width:auto}
+.retry-button{background:#882222;color:#fff;border:0;border-radius:8px;padding:7px 14px;font:700 11px Manrope;cursor:pointer;width:auto}
 .retry-button:hover{background:#681717}
+.error-actions{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-top:12px}
+.calculator-fallback-button{background:#fff;color:#681717;border:1px solid #e2b0b0;border-radius:8px;padding:6px 12px;font:600 11px Manrope;cursor:pointer;width:auto}
+.calculator-fallback-button:hover{background:#fbebeb}
+.response-timing-badge{font:600 10px 'DM Mono',monospace;color:#647c70;background:#edf5ee;border:1px solid #d0e2d2;padding:2px 8px;border-radius:10px;margin-left:auto;display:inline-flex;align-items:center;gap:3px}
 .loading-bubble{display:flex;align-items:center;gap:8px;padding:14px 20px;color:#536c5f;font-size:12.5px}
 .typing-dot{width:6px;height:6px;background:#536c5f;border-radius:50%;display:inline-block;animation:typingBounce 1.4s infinite ease-in-out both}
 .typing-dot:nth-child(1){animation-delay:-0.32s}

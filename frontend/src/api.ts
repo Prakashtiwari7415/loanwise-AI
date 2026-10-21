@@ -106,6 +106,7 @@ export type AssistantChatResponse = {
   sources?: SourceCitation[];
   breakdown?: BreakdownItem[];
   is_estimate?: boolean;
+  timings?: Record<string, number>;
 };
 
 export function sendAssistantMessage(payload: AssistantChatRequest) {

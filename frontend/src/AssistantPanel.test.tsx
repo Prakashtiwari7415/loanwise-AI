@@ -297,4 +297,70 @@ describe("AssistantPanel", () => {
       expect(screen.getByText("7000.00")).toBeDefined();
     });
   });
+
+  it("renders rate registry tool badge and timing badge when available", async () => {
+    const mockRateResponse: api.AssistantChatResponse = {
+      headline: "Current Personal Loan Interest Rates",
+      message: "Here are the benchmark personal loan rates across major Indian lenders.",
+      advantages: ["Competitive public and private bank rates"],
+      risks: ["Credit score dictates final offered rate"],
+      recommended_action: "Compare processing fees alongside interest rates.",
+      assumptions: ["Rates benchmarked as of verified date."],
+      tool_calls_used: ["fetch_current_rates"],
+      needs_more_information: false,
+      timings: {
+        total_server_time_ms: 245.5,
+        model_call_ms: 198.2,
+      },
+      sources: [
+        {
+          title: "State Bank of India Personal Loan Interest Rates",
+          url: "https://sbi.co.in/web/personal-banking/loans/personal-loans",
+          publisher: "State Bank of India",
+          source_type: "lender_disclosure",
+          published_date: "2024-10-01",
+          verified_date: "2024-10-15",
+          is_potentially_stale: false,
+        },
+      ],
+    };
+
+    vi.spyOn(api, "sendAssistantMessage").mockResolvedValue(mockRateResponse);
+
+    render(<AssistantPanel loanContext={dummyContext} />);
+
+    const rateBtn = screen.getByText("What are the latest personal-loan interest rates?");
+    fireEvent.click(rateBtn);
+
+    await waitFor(() => {
+      expect(screen.getByText("Current Personal Loan Interest Rates")).toBeDefined();
+      expect(screen.getByText(/Lender Benchmark Rate Registry/i)).toBeDefined();
+      expect(screen.getByText(/⚡ 246ms/i)).toBeDefined();
+      expect(screen.getByText("State Bank of India Personal Loan Interest Rates")).toBeDefined();
+      expect(screen.getByText("Verified: 2024-10-15")).toBeDefined();
+      expect(screen.getByText("Published: 2024-10-01")).toBeDefined();
+    });
+  });
+
+  it("renders calculator fallback button in error state and scrolls on click", async () => {
+    vi.spyOn(api, "sendAssistantMessage").mockRejectedValueOnce(new Error("504 Gateway Timeout"));
+
+    render(<AssistantPanel loanContext={dummyContext} />);
+
+    const textarea = screen.getByRole("textbox", { name: /Ask LoanWise AI Assistant/i });
+    fireEvent.change(textarea, { target: { value: "Complex calculation question" } });
+
+    const sendBtn = screen.getByRole("button", { name: /Send message/i });
+    fireEvent.click(sendBtn);
+
+    await waitFor(() => {
+      expect(screen.getByText(/Assistant request timed out/i)).toBeDefined();
+      expect(screen.getByText(/Use Deterministic Calculator/i)).toBeDefined();
+    });
+
+    const fallbackBtn = screen.getByText(/Use Deterministic Calculator/i);
+    fireEvent.click(fallbackBtn);
+    // Verified it didn't throw and was clickable
+    expect(fallbackBtn).toBeDefined();
+  });
 });

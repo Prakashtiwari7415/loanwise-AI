@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import logging
 from dataclasses import dataclass
+from datetime import datetime, timezone
 from decimal import Decimal
 from typing import Any, Callable
 
@@ -27,6 +28,9 @@ from .schemas import (
     CompareLoansResult,
     CostComponentResult,
     EstimateVehicleOwnershipArgs,
+    FetchCurrentRatesArgs,
+    FetchCurrentRatesResult,
+    LenderRateItemResult,
     RateScenarioItem,
     SimulatePrepaymentArgs,
     SimulatePrepaymentResult,
@@ -34,6 +38,7 @@ from .schemas import (
     SimulateRateChangeResult,
     VehicleOwnershipCostResult,
 )
+from app.rag.rates import CURATED_RATE_QUOTES
 
 logger = logging.getLogger(__name__)
 
@@ -200,6 +205,49 @@ def _handle_estimate_vehicle_ownership(args: EstimateVehicleOwnershipArgs) -> Ve
     )
 
 
+def _handle_fetch_current_rates(args: FetchCurrentRatesArgs) -> FetchCurrentRatesResult:
+    cat = args.loan_type.lower().strip()
+    if "car" in cat or "auto" in cat or "vehicle" in cat:
+        key = "car"
+    elif "home" in cat or "housing" in cat:
+        key = "home"
+    else:
+        key = "personal"
+
+    raw_quotes = CURATED_RATE_QUOTES.get(key, CURATED_RATE_QUOTES["personal"])
+    if args.lender:
+        l_lower = args.lender.lower().strip()
+        filtered = [q for q in raw_quotes if l_lower in q.lender.lower()]
+        quotes = filtered if filtered else raw_quotes
+    else:
+        quotes = raw_quotes
+
+    items = [
+        LenderRateItemResult(
+            lender=q.lender,
+            rate_range=q.rate_range,
+            starting_rate=q.starting_rate,
+            starting_rate_conditions=q.starting_rate_conditions,
+            processing_fee_info=q.processing_fee_info,
+            source_url=q.source_url,
+            verified_date=q.verified_date,
+            is_live=q.is_live,
+        )
+        for q in quotes
+    ]
+    return FetchCurrentRatesResult(
+        loan_type=key,
+        retrieved_at=datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+        is_live=False,
+        rates=items,
+        disclaimer=(
+            "Rates shown are official starting benchmark rates published by lenders. "
+            "Actual offered rate depends on individual credit score (CIBIL), income tier, "
+            "and lender eligibility rules."
+        ),
+    )
+
+
 REGISTERED_TOOLS: dict[str, RegisteredTool] = {
     "calculate_emi": RegisteredTool(
         name="calculate_emi",
@@ -256,6 +304,16 @@ REGISTERED_TOOLS: dict[str, RegisteredTool] = {
         ),
         args_schema=EstimateVehicleOwnershipArgs,
         handler=_handle_estimate_vehicle_ownership,
+    ),
+    "fetch_current_rates": RegisteredTool(
+        name="fetch_current_rates",
+        description=(
+            "Fetch verified benchmark interest rates, starting rates, conditions, and official lender links "
+            "for personal loans, car loans, or home loans across major Indian banks (SBI, HDFC, ICICI, PNB, BoB). "
+            "Use this tool when users ask about current interest rates, latest rates, or lender rate comparisons."
+        ),
+        args_schema=FetchCurrentRatesArgs,
+        handler=_handle_fetch_current_rates,
     ),
 }
 

@@ -54,3 +54,4 @@ class AssistantChatResponse(APIModel):
     sources: list[SourceCitation] = Field(default_factory=list, description="Curated source citations grounding the answer")
     breakdown: list[BreakdownItem] = Field(default_factory=list, description="Structured cost/calculation breakdown for display (empty when not applicable)")
     is_estimate: bool = Field(default=False, description="True when the response contains assumed values or ranges rather than verified calculations")
+    timings: dict[str, float] | None = Field(default=None, description="Server-side execution latency breakdown in milliseconds")

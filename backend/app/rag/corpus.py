@@ -140,3 +140,8 @@ LoanWise Financial Education Guide on Prepayment Economics:
 """.strip(),
     ),
 ]
+
+# Include verified lender benchmark rate cards into curated knowledge corpus
+from app.rag.rates import get_rate_source_documents
+
+CURATED_SOURCES.extend(get_rate_source_documents())

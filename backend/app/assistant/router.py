@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import logging
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Response
 
 from app.assistant.factory import get_assistant_service
 from app.assistant.provider import (
@@ -24,11 +24,17 @@ router = APIRouter(prefix="/api/v1/assistant", tags=["assistant"])
 @router.post("/chat", response_model=AssistantChatResponse)
 async def chat_with_assistant(
     request: AssistantChatRequest,
+    response: Response,
     service: AssistantService = Depends(get_assistant_service),
 ) -> AssistantChatResponse:
     """Chat with the AI decision-support assistant using allowlisted deterministic financial tools."""
     try:
-        return await service.chat(request)
+        result = await service.chat(request)
+        if result.timings:
+            response.headers["Server-Timing"] = ", ".join(
+                f"{k};dur={v}" for k, v in result.timings.items()
+            )
+        return result
     except ProviderAuthError as exc:
         logger.warning("Provider authentication failed: %s", exc)
         raise HTTPException(

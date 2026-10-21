@@ -92,9 +92,27 @@ CRITICAL OPERATIONAL RULES:
    - When no reliable source is found: state honestly that verified material is unavailable.
    - NEVER hallucinate citations, circular numbers, URLs, rates, or regulations.
 
-9. STRUCTURED RESPONSE OUTPUT:
-   Your final answer MUST be a valid JSON object with ALL of these fields:
-   * "headline": (string) Concise summary headline, e.g. "Estimated Monthly Car Cost: ₹18,500–₹22,000"
+9. CURRENT INTEREST RATES & LENDER COMPARISONS:
+   When asked about current, latest, or benchmark interest rates (e.g. personal loan rates, car loan rates, home loan rates):
+   - Use the verified lender evidence provided in the knowledge base or invoke fetch_current_rates to obtain official schedules.
+   - Present the rate ranges, starting rates, and conditions from major Indian lenders (SBI, HDFC Bank, ICICI Bank, PNB, Bank of Baroda).
+   - Distinguish 'starting from' rates from rates actually offered to a specific borrower (explain that offered rates depend on CIBIL score, income, and lender eligibility).
+   - Cite the official lender sources with their verification dates.
+   - Do NOT say you cannot check rates when verified lender evidence or the rate tool is available.
+
+10. LANGUAGE ADAPTATION (ENGLISH, HINDI, HINGLISH):
+   When the user requests an answer in Hindi or Hinglish, or asks in Hindi/Hinglish:
+   - Provide the content of "headline", "message", "advantages", "risks", "recommended_action", and "assumptions" in the requested language.
+   - For Hindi: use natural, clear Devanagari script (e.g., 'व्यक्तिगत ऋण की ब्याज दरें...').
+   - For Hinglish: use conversational Roman Hindi (e.g., 'SBI aur HDFC ke personal loan interest rates 10.30% se start hote hain...').
+   - The JSON dictionary keys ("headline", "message", etc.) MUST always remain in English.
+
+11. DIRECT STRUCTURED JSON OUTPUT:
+   Whenever you provide your final answer (whether without calling tools or after tool execution),
+   you MUST return a single valid JSON object directly. Do NOT output conversational preambles
+   or explanations outside the JSON object.
+   Your output MUST be a valid JSON object with ALL of these fields:
+   * "headline": (string) Concise summary headline.
    * "message": (string) Detailed educational explanation with breakdown if relevant.
    * "advantages": (list of strings) Key benefits or strengths identified.
    * "risks": (list of strings) Trade-offs, risks, or caveats.
@@ -147,8 +165,10 @@ def format_rag_evidence_prompt(retrieval_results: Sequence[Any]) -> str:
             lines.append(f"Published: {chunk.publication_date}")
         if getattr(chunk, "last_verified_date", None):
             lines.append(f"Last Verified: {chunk.last_verified_date}")
+        elif getattr(chunk, "verified_date", None):
+            lines.append(f"Last Verified: {chunk.verified_date}")
         lines.append("Evidence Excerpt:")
-        lines.append(chunk.text)
+        lines.append(getattr(chunk, "text", None) or getattr(chunk, "excerpt", ""))
         lines.append("---")
 
     lines.append(
@@ -156,3 +176,21 @@ def format_rag_evidence_prompt(retrieval_results: Sequence[Any]) -> str:
         "Do not invent any facts not supported by the excerpts above."
     )
     return "\n".join(lines)
+
+
+def format_language_prompt(language: str) -> str | None:
+    """Format language instruction if user requested Hindi or Hinglish."""
+    if language in ("hi", "hindi"):
+        return (
+            "LANGUAGE INSTRUCTION: The user requested an explanation in Hindi (हिंदी). "
+            "Write the headline, message, advantages, risks, recommended_action, and assumptions "
+            "in clear, natural Hindi (Devanagari script). Keep all JSON dictionary keys in English."
+        )
+    if language in ("hinglish",):
+        return (
+            "LANGUAGE INSTRUCTION: The user requested an explanation in Hinglish (conversational Hindi in Latin script). "
+            "Write the headline, message, advantages, risks, recommended_action, and assumptions "
+            "in friendly, natural Hinglish (e.g. 'Personal loan interest rates 10.30% se shuru hote hain...'). "
+            "Keep all JSON dictionary keys in English."
+        )
+    return None
