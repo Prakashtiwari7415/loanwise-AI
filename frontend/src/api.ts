@@ -85,6 +85,15 @@ export type SourceCitation = {
   is_potentially_stale?: boolean;
 };
 
+export type BreakdownItem = {
+  label: string;
+  amount_low: string;
+  amount_high: string;
+  is_estimate: boolean;
+  assumption?: string | null;
+  category?: string | null;
+};
+
 export type AssistantChatResponse = {
   headline: string;
   message: string;
@@ -95,6 +104,8 @@ export type AssistantChatResponse = {
   tool_calls_used: string[];
   needs_more_information: boolean;
   sources?: SourceCitation[];
+  breakdown?: BreakdownItem[];
+  is_estimate?: boolean;
 };
 
 export function sendAssistantMessage(payload: AssistantChatRequest) {

@@ -20,11 +20,14 @@ from app.assistant.provider import (
     ProviderInvalidResponseError,
     ToolDefinition,
 )
-from app.assistant.schemas import AssistantChatRequest, AssistantChatResponse
+from app.assistant.schemas import AssistantChatRequest, AssistantChatResponse, BreakdownItem
 from app.assistant.tools.registry import execute_tool, get_tool_definitions
 from app.rag import KnowledgeRetriever, RetrievalResult, SourceCitation, get_default_retriever, to_citation
 
 logger = logging.getLogger(__name__)
+
+
+_DEFAULT_RETRIEVER = object()
 
 
 class AssistantService:
@@ -33,12 +36,15 @@ class AssistantService:
     def __init__(
         self,
         provider: LLMProvider,
-        retriever: KnowledgeRetriever | None = None,
+        retriever: KnowledgeRetriever | None | object = _DEFAULT_RETRIEVER,
         max_turns: int = 5,
         max_tool_calls: int = 5,
     ) -> None:
         self.provider = provider
-        self.retriever = retriever if retriever is not None else get_default_retriever()
+        if retriever is _DEFAULT_RETRIEVER:
+            self.retriever = get_default_retriever()
+        else:
+            self.retriever = retriever  # type: ignore[assignment]
         self.max_turns = max_turns
         self.max_tool_calls = max_tool_calls
 
@@ -67,6 +73,8 @@ class AssistantService:
         tool_defs: list[ToolDefinition] | None = get_tool_definitions()
         executed_tools: list[str] = []
         total_tool_calls = 0
+        # Track vehicle ownership tool results to populate breakdown deterministically
+        vehicle_tool_results: list[dict[str, Any]] = []
 
         # 3. Agent orchestration loop
         for turn_idx in range(self.max_turns):
@@ -76,7 +84,9 @@ class AssistantService:
             if not response.tool_calls:
                 # If content already has a JSON structure, parse directly
                 if response.content and "{" in response.content:
-                    return self._parse_structured_response(response.content, executed_tools, retrieval_results)
+                    return self._parse_structured_response(
+                        response.content, executed_tools, retrieval_results, vehicle_tool_results
+                    )
 
                 # If tools were active, model replied in prose, and turns remain,
                 # do a quick formatting turn without tools to engage response_format=json_object
@@ -100,7 +110,9 @@ class AssistantService:
                     tool_defs = None
                     continue
 
-                return self._parse_structured_response(response.content, executed_tools, retrieval_results)
+                return self._parse_structured_response(
+                    response.content, executed_tools, retrieval_results, vehicle_tool_results
+                )
 
             # Record assistant turn with requested tool calls
             messages.append(
@@ -129,6 +141,9 @@ class AssistantService:
                 result = execute_tool(tc.name, tc.arguments_json)
                 if "error" not in result:
                     executed_tools.append(tc.name)
+                    # Capture vehicle ownership results for deterministic breakdown population
+                    if tc.name == "estimate_vehicle_ownership":
+                        vehicle_tool_results.append(result)
 
                 messages.append(
                     ChatMessage(
@@ -154,7 +169,9 @@ class AssistantService:
 
         # If turn limit reached without final text, request one final turn without tools
         final_response = await self.provider.generate_response(messages, tools=None)
-        return self._parse_structured_response(final_response.content, executed_tools, retrieval_results)
+        return self._parse_structured_response(
+            final_response.content, executed_tools, retrieval_results, vehicle_tool_results
+        )
 
     def _extract_json_string(self, text: str) -> str:
         """Strip markdown code fences or extract the first JSON object."""
@@ -175,6 +192,7 @@ class AssistantService:
         content: str | None,
         executed_tools: list[str],
         retrieval_results: list[RetrievalResult] | None = None,
+        vehicle_tool_results: list[dict[str, Any]] | None = None,
     ) -> AssistantChatResponse:
         """Parse and strictly validate the structured JSON response with grounded tool calls and citations."""
         if not content or not content.strip():
@@ -228,6 +246,27 @@ class AssistantService:
                         grounded_sources.append(cit.model_dump())
 
             parsed["sources"] = grounded_sources
+
+            # Populate breakdown deterministically from vehicle ownership tool results
+            vehicle_results = vehicle_tool_results or []
+            if vehicle_results:
+                last_result = vehicle_results[-1]
+                components = last_result.get("components", [])
+                breakdown_items: list[dict[str, Any]] = []
+                for comp in components:
+                    breakdown_items.append({
+                        "label": str(comp.get("label", "")),
+                        "amount_low": str(comp.get("amount_low", "0.00")),
+                        "amount_high": str(comp.get("amount_high", "0.00")),
+                        "is_estimate": bool(comp.get("is_estimate", False)),
+                        "assumption": comp.get("assumption"),
+                        "category": comp.get("category"),
+                    })
+                parsed["breakdown"] = breakdown_items
+                parsed["is_estimate"] = bool(last_result.get("has_estimated_components", False))
+            else:
+                parsed.setdefault("breakdown", [])
+                parsed.setdefault("is_estimate", False)
 
             # Defensive normalization for model schema variations
             if isinstance(parsed.get("recommended_action"), list):

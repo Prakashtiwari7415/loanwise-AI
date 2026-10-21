@@ -1,8 +1,9 @@
 import { FormEvent, KeyboardEvent, useEffect, useRef, useState } from "react";
-import { sendAssistantMessage, type AssistantChatResponse, type LoanContext } from "./api";
+import { sendAssistantMessage, type AssistantChatResponse, type BreakdownItem, type LoanContext } from "./api";
 
 const SUGGESTED_QUESTIONS = [
   "Explain my current EMI.",
+  "What are my total monthly car expenses including EMI, fuel, and insurance?",
   "What does RBI mandate about KFS cooling-off period?",
   "Are foreclosure charges allowed on floating car loans?",
   "What is the difference between flat and reducing rate?",
@@ -16,6 +17,7 @@ const TOOL_NAMES_MAP: Record<string, string> = {
   compare_loans: "Loan Comparison & Recommendation",
   simulate_prepayment: "Prepayment Schedule Simulation",
   simulate_rate_change: "Rate Sensitivity Engine",
+  estimate_vehicle_ownership: "Vehicle Ownership Cost Estimator",
 };
 
 type ChatMessage = {
@@ -233,6 +235,50 @@ export function AssistantPanel({ loanContext, externalAction, onClearExternalAct
                         ⚙ Used financial tool: <b>{TOOL_NAMES_MAP[tool] ?? tool}</b>
                       </span>
                     ))}
+                  </div>
+                )}
+
+                {/* Estimate notice */}
+                {msg.response.is_estimate && (
+                  <div className="estimate-notice" role="note">
+                    <span className="estimate-icon">≈</span>
+                    <span>This response contains estimated values. Assumed components are marked below.</span>
+                  </div>
+                )}
+
+                {/* Cost breakdown table */}
+                {msg.response.breakdown && msg.response.breakdown.length > 0 && (
+                  <div className="breakdown-table-wrap" aria-label="Cost breakdown">
+                    <table className="breakdown-table">
+                      <caption className="breakdown-caption">Monthly Cost Breakdown</caption>
+                      <thead>
+                        <tr>
+                          <th scope="col">Component</th>
+                          <th scope="col" className="amount-col">Low (₹)</th>
+                          <th scope="col" className="amount-col">High (₹)</th>
+                          <th scope="col">Type</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {msg.response.breakdown.map((item: BreakdownItem, idx: number) => (
+                          <tr
+                            key={idx}
+                            className={item.is_estimate ? "breakdown-row estimated-row" : "breakdown-row"}
+                            title={item.assumption ?? undefined}
+                          >
+                            <td className="breakdown-label">
+                              {item.label}
+                              {item.is_estimate && <span className="estimated-badge">≈ Estimated</span>}
+                            </td>
+                            <td className="breakdown-amount">{item.amount_low}</td>
+                            <td className="breakdown-amount">
+                              {item.amount_high === item.amount_low ? "—" : item.amount_high}
+                            </td>
+                            <td className="breakdown-category">{item.category ?? "—"}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
                   </div>
                 )}
 

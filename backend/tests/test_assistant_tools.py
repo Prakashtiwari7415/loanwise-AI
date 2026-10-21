@@ -18,6 +18,7 @@ def test_tool_definitions_expose_all_allowlisted_tools() -> None:
         "compare_loans",
         "simulate_prepayment",
         "simulate_rate_change",
+        "estimate_vehicle_ownership",
     }
     assert tool_names == expected_tools
     for tool_def in definitions:

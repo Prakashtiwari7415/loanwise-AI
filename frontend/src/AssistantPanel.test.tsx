@@ -237,4 +237,64 @@ describe("AssistantPanel", () => {
       expect(screen.getByText(/Verification date is older than 90 days/i)).toBeDefined();
     });
   });
+
+  it("renders cost breakdown table and estimate notice when assistant returns breakdown items", async () => {
+    const mockBreakdownResponse: api.AssistantChatResponse = {
+      headline: "Estimated Monthly Car Expenses: ₹21,500–₹23,500",
+      message: "Here is your estimated monthly vehicle expense breakdown.",
+      advantages: ["Clear breakdown by component"],
+      risks: ["Fuel price fluctuations"],
+      recommended_action: "Provide exact fuel price to narrow the range.",
+      assumptions: ["Mileage assumed 15-20 km/litre."],
+      tool_calls_used: ["estimate_vehicle_ownership"],
+      needs_more_information: false,
+      is_estimate: true,
+      breakdown: [
+        {
+          label: "Car Loan EMI",
+          amount_low: "15000.00",
+          amount_high: "15000.00",
+          is_estimate: false,
+          category: "emi",
+        },
+        {
+          label: "Fuel",
+          amount_low: "5000.00",
+          amount_high: "7000.00",
+          is_estimate: true,
+          assumption: "Mileage assumed 15-20 km/litre",
+          category: "operating",
+        },
+        {
+          label: "Insurance Provision (annual ÷ 12)",
+          amount_low: "1500.00",
+          amount_high: "1500.00",
+          is_estimate: false,
+          category: "annual_provision",
+        },
+      ],
+    };
+
+    vi.spyOn(api, "sendAssistantMessage").mockResolvedValue(mockBreakdownResponse);
+
+    render(<AssistantPanel loanContext={dummyContext} />);
+
+    const textarea = screen.getByRole("textbox", { name: /Ask LoanWise AI Assistant/i });
+    fireEvent.change(textarea, { target: { value: "Tell me the total estimated monthly expenses of my car." } });
+
+    const sendBtn = screen.getByRole("button", { name: /Send message/i });
+    fireEvent.click(sendBtn);
+
+    await waitFor(() => {
+      expect(screen.getByText("Estimated Monthly Car Expenses: ₹21,500–₹23,500")).toBeDefined();
+      expect(screen.getByText(/This response contains estimated values/i)).toBeDefined();
+      expect(screen.getByText("Monthly Cost Breakdown")).toBeDefined();
+      expect(screen.getByText("Car Loan EMI")).toBeDefined();
+      expect(screen.getByText("Fuel")).toBeDefined();
+      expect(screen.getByText("≈ Estimated")).toBeDefined();
+      expect(screen.getByText("15000.00")).toBeDefined();
+      expect(screen.getByText("5000.00")).toBeDefined();
+      expect(screen.getByText("7000.00")).toBeDefined();
+    });
+  });
 });

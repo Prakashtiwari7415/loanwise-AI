@@ -134,3 +134,97 @@ class RateScenarioItem(BaseModel):
 
 class SimulateRateChangeResult(BaseModel):
     scenarios: list[RateScenarioItem]
+
+
+# --- estimate_vehicle_ownership ---
+class OtherExpenseItem(ToolArgsModel):
+    label: str = Field(..., min_length=1, max_length=100, description="Human-readable label for this expense")
+    amount: Decimal = Field(..., ge=0, max_digits=10, decimal_places=2, description="Monthly amount in INR")
+
+
+class EstimateVehicleOwnershipArgs(ToolArgsModel):
+    """Arguments for the vehicle total-cost-of-ownership estimator.
+
+    All monetary values are in INR. Missing optional inputs are handled with
+    transparent range assumptions — they must NOT be defaulted to zero silently.
+    """
+    emi: Decimal | None = Field(
+        default=None, gt=0, max_digits=14, decimal_places=2,
+        description="Known monthly loan EMI in INR for this vehicle. Include only if the loan context is clear."
+    )
+    emi_is_assumed: bool = Field(
+        default=False,
+        description="Set true if the EMI is an assumption rather than a verified calculation."
+    )
+    emi_assumption_note: str | None = Field(
+        default=None, max_length=300,
+        description="Explanation of what was assumed for the EMI value."
+    )
+    monthly_distance_km: Decimal | None = Field(
+        default=None, gt=0, max_digits=8, decimal_places=1,
+        description="Average monthly driving distance in kilometres."
+    )
+    mileage_km_per_litre: Decimal | None = Field(
+        default=None, gt=0, max_digits=6, decimal_places=2,
+        description="Vehicle fuel efficiency in km per litre."
+    )
+    fuel_price_per_litre: Decimal | None = Field(
+        default=None, gt=0, max_digits=7, decimal_places=2,
+        description="Current fuel price in INR per litre."
+    )
+    annual_insurance_premium: Decimal | None = Field(
+        default=None, ge=0, max_digits=12, decimal_places=2,
+        description="Annual comprehensive insurance premium in INR. Will be divided by 12 for monthly provision."
+    )
+    monthly_insurance_provision: Decimal | None = Field(
+        default=None, ge=0, max_digits=12, decimal_places=2,
+        description="Pre-calculated monthly insurance provision in INR (use instead of annual_insurance_premium if already converted)."
+    )
+    monthly_maintenance: Decimal | None = Field(
+        default=None, ge=0, max_digits=10, decimal_places=2,
+        description="Monthly spend on routine maintenance and servicing in INR."
+    )
+    annual_maintenance: Decimal | None = Field(
+        default=None, ge=0, max_digits=12, decimal_places=2,
+        description="Annual maintenance cost in INR. Will be divided by 12 for monthly provision."
+    )
+    monthly_parking: Decimal | None = Field(
+        default=None, ge=0, max_digits=8, decimal_places=2,
+        description="Monthly parking cost in INR (0 if not applicable)."
+    )
+    monthly_tolls: Decimal | None = Field(
+        default=None, ge=0, max_digits=8, decimal_places=2,
+        description="Monthly toll expenses in INR (FASTag / booth)."
+    )
+    other_monthly_expenses: list[OtherExpenseItem] = Field(
+        default_factory=list, max_length=10,
+        description="Additional recurring monthly expenses (e.g. car wash, accessories EMI)."
+    )
+    vehicle_purchase_price: Decimal | None = Field(
+        default=None, gt=0, max_digits=14, decimal_places=2,
+        description="Vehicle ex-showroom / on-road price in INR for depreciation estimation."
+    )
+    include_depreciation_note: bool = Field(
+        default=True,
+        description="Whether to include a depreciation note in the breakdown."
+    )
+
+
+class CostComponentResult(BaseModel):
+    label: str
+    amount_low: Decimal
+    amount_high: Decimal
+    is_estimate: bool
+    assumption: str | None
+    category: str
+
+
+class VehicleOwnershipCostResult(BaseModel):
+    components: list[CostComponentResult]
+    total_low: Decimal
+    total_high: Decimal
+    emi_included: bool
+    has_estimated_components: bool
+    uncertainty_note: str
+    exclusions: list[str]
+    follow_up_suggestions: list[str]

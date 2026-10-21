@@ -111,6 +111,23 @@ footer p{margin:0;max-width:680px}
 .needs-info-badge{font:700 10px 'DM Mono';background:#fff5dc;color:#875a13;padding:3px 8px;border-radius:10px;white-space:nowrap}
 .tool-usage-row{display:flex;flex-wrap:wrap;gap:6px;margin:8px 0 14px}
 .tool-badge{font:500 11px 'DM Mono';background:#eaf7e8;color:#215e44;border:1px solid #c8e4c5;padding:3px 10px;border-radius:12px;display:inline-flex;align-items:center;gap:5px}
+.estimate-notice{display:flex;align-items:center;gap:8px;background:#fff8eb;border:1px solid #f6deb4;color:#85540e;padding:8px 12px;border-radius:10px;font-size:12px;margin:10px 0}
+.estimate-icon{font-weight:700;font-size:14px;color:#d97706}
+.breakdown-table-wrap{margin:14px 0;overflow-x:auto;border:1px solid #dce4dd;border-radius:12px;background:#fff}
+.breakdown-table{width:100%;border-collapse:collapse;font-size:12.5px;text-align:left}
+.breakdown-caption{caption-side:top;text-align:left;font:700 11.5px 'DM Mono';color:#406050;padding:8px 12px;background:#f3f7f4;border-bottom:1px solid #dce4dd;text-transform:uppercase;letter-spacing:.5px}
+.breakdown-table th{background:#f8faf8;padding:8px 12px;font:700 11px 'DM Mono';color:#496155;border-bottom:1px solid #dce4dd}
+.breakdown-table td{padding:9px 12px;border-bottom:1px solid #edf2ed;vertical-align:middle}
+.breakdown-table tbody tr:last-child td{border-bottom:none}
+.breakdown-row:hover{background:#f9fbf9}
+.estimated-row{background:#fcfbf6}
+.estimated-row:hover{background:#faf8ee}
+.breakdown-label{font-weight:600;color:#18362b}
+.estimated-badge{display:inline-block;margin-left:6px;font:600 10px 'DM Mono';background:#fff3d6;color:#8c580b;padding:1px 6px;border-radius:6px;border:1px solid #eed8a1}
+.breakdown-amount{font-family:'DM Mono',monospace;font-size:12px;color:#1d392e;font-weight:600}
+.amount-col{text-align:right}
+.breakdown-table td.breakdown-amount{text-align:right}
+.breakdown-category{font-size:11px;color:#6d8076;text-transform:capitalize}
 .response-message{font-size:13.5px;line-height:1.65;color:#2d453b}
 .response-message p{margin:6px 0}
 .response-factors{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin:16px 0}

@@ -16,6 +16,7 @@ from app.financial.emi import calculate_summary
 from app.financial.payment import simulate_one_time_prepayment
 from app.financial.scenarios import recommend_offer, simulate_rate_scenarios
 from app.financial.types import LoanInputs, LoanOffer
+from app.financial.vehicle_ownership import estimate_vehicle_ownership_cost
 
 from .schemas import (
     CalculateAffordabilityArgs,
@@ -24,11 +25,14 @@ from .schemas import (
     CalculateEMIResult,
     CompareLoansArgs,
     CompareLoansResult,
+    CostComponentResult,
+    EstimateVehicleOwnershipArgs,
     RateScenarioItem,
     SimulatePrepaymentArgs,
     SimulatePrepaymentResult,
     SimulateRateChangeArgs,
     SimulateRateChangeResult,
+    VehicleOwnershipCostResult,
 )
 
 logger = logging.getLogger(__name__)
@@ -155,6 +159,47 @@ def _handle_simulate_rate_change(args: SimulateRateChangeArgs) -> SimulateRateCh
     )
 
 
+def _handle_estimate_vehicle_ownership(args: EstimateVehicleOwnershipArgs) -> VehicleOwnershipCostResult:
+    other_expenses = [(item.label, item.amount) for item in args.other_monthly_expenses]
+    result = estimate_vehicle_ownership_cost(
+        emi=args.emi,
+        emi_is_assumed=args.emi_is_assumed,
+        emi_assumption_note=args.emi_assumption_note,
+        monthly_distance_km=args.monthly_distance_km,
+        mileage_km_per_litre=args.mileage_km_per_litre,
+        fuel_price_per_litre=args.fuel_price_per_litre,
+        annual_insurance_premium=args.annual_insurance_premium,
+        monthly_insurance_provision=args.monthly_insurance_provision,
+        monthly_maintenance=args.monthly_maintenance,
+        annual_maintenance=args.annual_maintenance,
+        monthly_parking=args.monthly_parking,
+        monthly_tolls=args.monthly_tolls,
+        other_monthly_expenses=other_expenses,
+        vehicle_purchase_price=args.vehicle_purchase_price,
+        include_depreciation_note=args.include_depreciation_note,
+    )
+    return VehicleOwnershipCostResult(
+        components=[
+            CostComponentResult(
+                label=c.label,
+                amount_low=c.amount_low,
+                amount_high=c.amount_high,
+                is_estimate=c.is_estimate,
+                assumption=c.assumption,
+                category=c.category,
+            )
+            for c in result.components
+        ],
+        total_low=result.total_low,
+        total_high=result.total_high,
+        emi_included=result.emi_included,
+        has_estimated_components=result.has_estimated_components,
+        uncertainty_note=result.uncertainty_note,
+        exclusions=result.exclusions,
+        follow_up_suggestions=result.follow_up_suggestions,
+    )
+
+
 REGISTERED_TOOLS: dict[str, RegisteredTool] = {
     "calculate_emi": RegisteredTool(
         name="calculate_emi",
@@ -199,6 +244,18 @@ REGISTERED_TOOLS: dict[str, RegisteredTool] = {
         ),
         args_schema=SimulateRateChangeArgs,
         handler=_handle_simulate_rate_change,
+    ),
+    "estimate_vehicle_ownership": RegisteredTool(
+        name="estimate_vehicle_ownership",
+        description=(
+            "Estimate total monthly vehicle ownership costs including loan EMI, fuel, insurance provision "
+            "(annual ÷ 12), maintenance, parking, and tolls. Produces a transparent breakdown with "
+            "estimated ranges for missing inputs, clearly labelled assumptions, and exclusions. "
+            "Use this tool for questions about total car expenses, monthly vehicle budget, or ownership costs. "
+            "Do NOT silently default missing values to zero — use the tool to produce a range."
+        ),
+        args_schema=EstimateVehicleOwnershipArgs,
+        handler=_handle_estimate_vehicle_ownership,
     ),
 }
 
