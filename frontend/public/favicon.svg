@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64" role="img" aria-label="LoanWise AI Logo">
+  <!-- Deep forest green rounded badge with emerald border -->
+  <rect x="2" y="2" width="60" height="60" rx="15" fill="#10251f" stroke="#265342" stroke-width="1.5" />
+  
+  <!-- Stylized loan agreement document with folded corner -->
+  <path d="M 18 13 C 15.8 13 14 14.8 14 17 L 14 47 C 14 49.2 15.8 51 18 51 L 39 51 C 41.2 51 43 49.2 43 47 L 43 25 L 31 13 Z" fill="#ffffff" />
+  <path d="M 31 13 L 31 22 C 31 23.7 32.3 25 34 25 L 43 25 Z" fill="#cce4d6" />
+
+  <!-- Approved loan decision / coin medallion with bold checkmark -->
+  <circle cx="39" cy="40" r="13" fill="#b9e445" stroke="#10251f" stroke-width="2.5" />
+  <path d="M 33 40 L 37.5 44.5 L 45.5 35" fill="none" stroke="#10251f" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round" />
+</svg>
