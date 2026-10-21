@@ -7,8 +7,8 @@ The pipeline is defined in [`.github/workflows/ci.yml`](../.github/workflows/ci.
 ```mermaid
 flowchart TD
     Push["Push to main / Open PR"]
-    Backend["backend job\npytest 81 tests\nPython 3.12\nSQLite in-memory"]
-    Frontend["frontend job\nvitest 38 tests\nTypeScript build\nNode 22"]
+    Backend["backend job\npytest 118 tests\nPython 3.12\nSQLite in-memory"]
+    Frontend["frontend job\nvitest 39 tests\nTypeScript build\nNode 22"]
     Deploy["deploy job\nmain only\nafter both pass"]
     BackendHook["Render — Backend\ndeploy hook"]
     FrontendHook["Render — Frontend\ndeploy hook"]
