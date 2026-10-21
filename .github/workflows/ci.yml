@@ -6,8 +6,8 @@
 #   - Every push to main                  → runs quality checks, then deploys
 #
 # Jobs:
-#   backend  — pytest suite (81 tests, SQLite in-memory, no real API key)
-#   frontend — vitest suite (38 tests) + TypeScript build
+#   backend  — pytest suite (118 tests, SQLite in-memory, no real API key)
+#   frontend — vitest suite (39 tests) + TypeScript build
 #   deploy   — Render deploy hooks (main pushes only, after both jobs pass)
 #
 # Required GitHub repository secrets (Settings → Secrets and variables → Actions):
@@ -73,16 +73,16 @@ jobs:
 
       # Tests use SQLite in-memory via pytest fixture (test_persistence.py).
       # No real DATABASE_URL or API key is needed.
-      # PYTHONPATH is required so that 'from app.xxx import ...' resolves
-      # correctly from inside the backend/ working directory.
+      # PYTHONPATH is set to . so that 'from app.xxx import ...' resolves
+      # correctly with backend/ as the working directory.
       - name: Run pytest suite
         env:
           PYTHONPATH: .
           ENVIRONMENT: test
           # Explicitly absent: DATABASE_URL, GEMINI_API_KEY, LLM_API_KEY.
           # Tests that require these use mocks / monkeypatching.
-        run: pytest backend/tests -v --tb=short
-        working-directory: ${{ github.workspace }}
+        run: pytest tests -v --tb=short
+        working-directory: backend
 
   # ---------------------------------------------------------------------------
   # FRONTEND CI JOB
